@@ -1,0 +1,28 @@
+﻿# CMakeLists.txt
+cmake_minimum_required(VERSION 3.10)
+project(Multilayer_Grpahene)
+set(CMAKE_CXX_STANDARD 17)  
+
+# Ustawienie domyślnego trybu na Release
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
+
+# Flagi kompilacji dla trybu Debug i Release
+set(CMAKE_CXX_FLAGS_DEBUG "-g -Wall -DDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "-O2 -Wall -DNDEBUG")
+
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+
+# Ustawienie katalogu wyjściowego dla plików wykonywalnych (jeden poziom wyżej)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# Dodanie katalogu z plikami nagłówkowymi (bieżący katalog)
+include_directories(${CMAKE_SOURCE_DIR}/src)
+
+# Zbieranie wszystkich plików .cpp w bieżąccym katalogu
+file(GLOB ALL_SOURCE_FILES "src/*.cpp")
+
+# Utworzenie pliku wykonywalnego dla main.cpp, wykorzystując pozostałe pliki .cpp jako źródła
+add_executable(main "src/main.cpp" ${ALL_SOURCE_FILES})
+
