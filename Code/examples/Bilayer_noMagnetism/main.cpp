@@ -5,8 +5,6 @@
 #include "Constants.h" // freqquently and widely used variables used as parameters
         
 int main(int argc, char* argv[]){
-
-    // std::cout << "counting " << (zad==0?"all\n":str(zad) + "\n");
     std::cout << "use: ./main dG show N\ndG:\n\t      0: counting from 0.1 to 0.9\n\t<value>: counting for only <value>\nshow: printing plot in terminal for huge N use 'ctrl'+'-' to view whole image\nN: size of pixels/points for which to count densities\n\n";
 
     double dt = 21.;
@@ -47,7 +45,6 @@ int main(int argc, char* argv[]){
         show = bool(std::atoi(argv[2]));
         printf("show = %s\n", show?"true":"false");
     }
-
 
     for(; dG <= dGmax; dG += (dGmax-dGmin)/50)
     {

@@ -1,70 +1,16 @@
-# Graphene_codes
-
-Master's degree project
-
-## HOW TO BUILD
-
-### Method 1 - cmake
-
-1. go to Code directory
-
-```bash
-cd Code/
-```
-
-2. create directories
-
-```bash
-mkdir build 
-mkdir build/Release 
-mkdir build/Debug
-```
-
-3. run cmake commands:
-
-```bash
-cmake -S . -B ./build/Release -DCMAKE_BUILD_TYPE=Release
-cmake -S . -B ./build/Debug -DCMAKE_BUILD_TYPE=Debug
-```
-
-4. compile projects:
-
-- All Debug:
-
-```bash
-cmake --build build/Debug
-```
-
-- All Release:
-
-```bash
-cmake --build build/Release
-```
-
-- One project:
-
-```bash
-cmake --build build/<Release/Debug> --target <ProjectName>
-```
-
-ProjectName is name of directory inside examples directory. For example Bilayer_Magnetism_densitiesCalculation. Executable will be located in directory of project.
-
-### Scripts
+# Scripts
 
 There are bunch of scripts helping to build, use cmake inside Code/scripts directory. Project is being written on Windows with mingw and msys. Modify them for your needs, especially if you're on another platform. In future I will add .sh scripts for linux/wsl. To use scripts:
 
 1. recmake.bat:
-
 It remakes cmakefiles, like step 3. in Method 1 - cmake
 Copy to top level directory in this repo.
 Usefull if we added new files to project, Don't forget to modify CmakeLists.txt accordingly then.
 
 2. build.bat:
-
 It builds the project program.
 Copy to project directory to use, use with flag describing what build type to use: <Release/Debug>.  
 
 3. run.bat:
-
 It calls build.bat and if everything is ok it runs the program.
 Also copy it to project directory. Usefull for saving arguments passed for program.

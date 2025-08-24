@@ -8,6 +8,69 @@ Rnd rnd;
 
 ////////////////// always implemented: //////////////////
 
+// finds x for which func(x) is lowerr than tol, !!! make sure func crosses zero in range x_left xright at least and only one time !!!
+double bisection(double x_left, double x_right, std::function<double(double)>& func){
+    constexpr int N_max = 64;
+    constexpr double tol = 1e-7;
+    
+    double y_left = func(x_left);
+    double y_right = func(x_right);
+    
+    if(y_left < 0 && y_right > 0)
+    {
+        for(int i = 0; i < N_max; i++){
+            double x_new = (x_left + x_right)*0.5;
+            double y_new = func(x_new);
+
+            dmsg( "y_new: " << y_new << "\n");
+            if( std::abs(y_new) < tol )
+            {
+                dmsg("returning normally case 1\n");
+                return x_new;
+            }
+            
+            if(y_new < 0)
+            {
+                x_left = x_new;
+            }
+            else
+            {
+                x_right = x_new;
+            }
+        }
+    }
+    else if(y_right < 0 && y_left > 0)
+    {
+        for(int i = 0; i < N_max; i++){
+            double x_new = (x_left + x_right)*0.5;
+            double y_new = func(x_new);
+
+            dmsg( "y_new: " << y_new << "\n");
+            if( std::abs(y_new) < tol )
+            {
+                dmsg("returning normally case 2\n");
+                return x_new;
+            }
+            
+            if(y_new > 0)
+            {
+                x_left = x_new;
+            }
+            else
+            {
+                x_right = x_new;
+            }
+        }
+    }
+    else{
+        throw std::invalid_argument("Error in bisection! func(x_left) == func(x_right) = 0 or both have same sign: " +str(y_left) + " | " + str(y_right) + "\n");
+    }
+
+    dmsg("returning case 3\n");
+    return (x_left + x_right) * 0.5;
+
+};
+
 double newton(int n, int k){
     if(n < 0 || k < 0) return 0;
     if(n < 160 && (k < 13 || n-k < 13)) return newton_size_t(n,k);

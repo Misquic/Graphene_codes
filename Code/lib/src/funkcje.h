@@ -28,8 +28,17 @@ public:
     Bilayer operator=(Bilayer&& other) = delete;
     Bilayer operator=(Bilayer& other) = delete;
 
+    // returns nt, nb -> densities calculated without external magnetic field, provide Vt and Vb in eV
     std::pair<double, double> count_densities(double Vt, double Vb);
+
+    // returns nt, nb -> densities calculated with external magnetic field, provide Vt and Vb in eV and B in T
+    std::pair<double, double> count_densities(double Vt, double Vb, double B);
+
 };
+
+    std::vector<double>     prepare_E_nl(double B, int L_max);
+    double prepare_part_sum(const std::vector<double>& E_nl_vec);
+    double count_E_0(const std::vector<double>& E_nl_vec, double n0, double B, double partsum);
 
 #endif
 

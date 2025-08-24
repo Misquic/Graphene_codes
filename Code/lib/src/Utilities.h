@@ -22,6 +22,7 @@
 
 ////////////////// always implemented: //////////////////
 
+double bisection(double x_left, double x_right, std::function<double(double)>& func);
 double newton(int n, int k);
 size_t newton_size_t(int n, int k);
 double newton_double(int n, int k);
@@ -266,6 +267,10 @@ public:
     Array2D<data_type> transpose() const;
     std::vector<data_type> mean(int axis) const;
     data_type mean() const;
+
+    //getters
+    std::vector<data_type> getVector() const;
+    std::vector<data_type>& getVectorRef();
 
     //arithmetic operators
     std::vector<data_type> operator*(const std::vector<data_type>& vec) const;
@@ -553,6 +558,18 @@ data_type Array2D<data_type>::mean() const{
     return sum/(m_Ni*m_Nj);
 };
 
+//getters
+template<class data_type>
+std::vector<data_type> Array2D<data_type>::getVector() const
+{
+    return m_data;
+};
+
+template<class data_type>
+std::vector<data_type>& Array2D<data_type>::getVectorRef()
+{
+    return m_data;
+};
 
 //arithmetic operators
 template<class data_type> //matrix multiplication NxM * Mx1 vec
