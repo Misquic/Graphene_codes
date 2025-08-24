@@ -434,6 +434,7 @@ template<class data_type>
 data_type Array2D<data_type>::min() const{
     return std::min_element(m_data.begin(), m_data.end())[0];
 };
+
 size_t permute_transpose_inplace(size_t a, size_t new_first_dim, size_t new_second_dim);
 size_t inverse_permute_transpose_inplace(size_t a, size_t new_first_dim, size_t new_second_dim);
 bool is_minimal_in_cycle(size_t a, size_t new_first_dim, size_t new_second_dim);

@@ -151,7 +151,6 @@ void reset_color(std::stringstream& ss){
     ss << "\033[0m ";
 }
 
-
 size_t permute_transpose_inplace(size_t a, size_t new_first_dim, size_t new_second_dim){
     size_t MN_1 = new_first_dim*new_second_dim-1; 
     if(a == MN_1) return MN_1;
@@ -174,27 +173,3 @@ size_t inverse_permute_transpose_inplace(size_t a, size_t new_first_dim, size_t 
     if(a == MN_1) return MN_1;
     return (new_second_dim*a)%MN_1;  
 };
-
-// a b c
-// d e f
-// g h i
-// j k l
-
-// a b c d e f g h  i  j k l
-// 0 4 8 1 5 9 2 6  10 3 7 11 inverse permute orig -> dest na ten index idzie ten element
-// 0 3 6 9 1 4 7 10 2  5 8 11 permute         dest <- orig na to miejsce przychodzi taki index
-// a d g j b e h k  c  f i l
-
-// 0 1 2 3 4 5 6 7  8  9 10 11
-// a d g
-// j b e
-// h k c
-// f i l
-
-// a d g j
-// b e h k
-// c f i l
-
-// a d g j
-// b e h k
-// c f i l
