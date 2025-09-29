@@ -1,7 +1,11 @@
 *.vscode
-code/recmake.bat
-code/examples/**/*.bat
+Code/recmake.bat
+Code/recmake.sh
+Code/examples/**/*.bat
+Code/examples/**/*.sh
 README.pdf
+*.exe
+main
 
 ## DATA
 *.csv

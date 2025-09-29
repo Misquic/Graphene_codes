@@ -4,6 +4,8 @@ if exist ".\main.exe" (
 )
 
 Set startDir=%cd%
+
+@REM cutting path so only name of project is saved in Project variable
 for %%A in (%startDir%) do Set "Project=%%~nA"
 cd ../../
 
