@@ -9,7 +9,7 @@ main
 
 ## DATA
 *.csv
-*.png
+# *.png
 *.zip
 *.xml
 
