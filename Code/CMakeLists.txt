@@ -19,6 +19,7 @@ message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 add_subdirectory(lib)
 
 # subprojects
-add_subdirectory(examples/Bilayer_Magnetism_densitiesCalculation)
+add_subdirectory(examples/Bilayer_Magnetism_E0_numerical)
 add_subdirectory(examples/Bilayer_noMagnetism)
 add_subdirectory(examples/Bilayer_transport_v0)
+# add_subdirectory(examples/Bilayer_Magnetism_densities)

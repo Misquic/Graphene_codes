@@ -5,7 +5,8 @@
 #include "Constants.h" // freqquently and widely used variables used as parameters
         
 int main(int argc, char* argv[]){
-  std::cout << "use: ./main dG show N\n"
+  std::cout << "Program calculates densities for bilayer Graphene (eq.3 & eq.5)\n"
+               "use: ./main dG show N\n"
                "\t     dG: thickness of graphene layer, possible values:\n"
                "\t\t      0: counting from 0.1 to 0.9\n"
                "\t\t<value>: counting for only <value>\n"

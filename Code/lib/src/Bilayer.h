@@ -23,13 +23,17 @@ public:
   Bilayer operator=(Bilayer&& other) = delete;
   Bilayer operator=(Bilayer& other) = delete;
 
-  /* returns nt, nb -> densities calculated without external magnetic field, 
+  /* returns nt, nb -> densities calculated without external magnetic field,
+    returns [nt, nb, Vgt, Vgb] in results* if given 
     provide Vt and Vb in eV */
-  std::pair<double, double> countDensities(double Vt, double Vb) const;
+  std::pair<double, double> countDensitiesAndPotential(
+    double Vt, double Vb, double* results = nullptr) const;
 
   /* returns nt, nb -> densities calculated with external magnetic field,
+    returns [nt, nb, Vgt, Vgb, E0t E0b] in results* if given 
     provide Vt and Vb in eV and B in T */
-  std::pair<double, double> countDensities(double Vt, double Vb, double B) const;
+  std::pair<double, double> countDensitiesAndPotential(
+    double Vt, double Vb, double B, double* results = nullptr) const;
 
 };
 

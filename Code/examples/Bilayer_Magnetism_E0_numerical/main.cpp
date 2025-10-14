@@ -5,10 +5,8 @@
 #include "Constants.h" // freqquently and widely used variables used as parameters
         
 int main(int argc, char* argv[]){
-    
-  dmsg("debug\n");
 
-  return 0;
+  std::cout << "Program calculates E0 numerically in Graphene in Magnetic field (eq.14)\n";
 
   size_t M = 10;
   if(argc >= 2)

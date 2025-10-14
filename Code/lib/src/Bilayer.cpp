@@ -23,15 +23,15 @@ inline void count_n_V(double V, double Vg_o, double C, double Cg, double abs_ni,
   Vg = - (delta_n + sign_ni*sqrt_2_nQ_abs_ni) / (C + Cg);
 }
 
-std::pair<double, double> Bilayer::countDensities(double Vt, double Vb) const
+std::pair<double, double> Bilayer::countDensitiesAndPotential(double Vt, double Vb, double* results = nullptr) const
 {
   constexpr double tol = 1e-4;
-  Vt *= Const::eV2au;
-  Vb *= Const::eV2au;
+  Vt *= Const::eV2au; // Top gate voltage
+  Vb *= Const::eV2au; // Bottom gate voltage
     
-  double Vgt     = 0, Vgb     = 0;
-  double Vgt_old = 0, Vgb_old = 0;
-  double nt      = 0, nb      = 0;
+  double Vgt     = 0, Vgb     = 0; // Graphene top/bottom voltage
+  double Vgt_old = 0, Vgb_old = 0; // previous iteration Graphene top/bottom voltage
+  double ngt      = 0, ngb      = 0; // Graphene top/bottom densities
   const double abs_nit = std::abs(m_nit);
   const double abs_nib = std::abs(m_nib);
   const double sign_nit = m_nit >= 0. ? 1. : -1.;
@@ -45,9 +45,9 @@ std::pair<double, double> Bilayer::countDensities(double Vt, double Vb) const
     // Vgt = Vgt_old;
     // Vgb = Vgb_old;
     // t
-    count_n_V(Vt, Vgb_old, m_Ct, m_Cg, abs_nit, sign_nit, nt, Vgt);
+    count_n_V(Vt, Vgb_old, m_Ct, m_Cg, abs_nit, sign_nit, ngt, Vgt);
     // b
-    count_n_V(Vb, Vgt_old, m_Cb, m_Cg, abs_nib, sign_nib, nb, Vgb);
+    count_n_V(Vb, Vgt_old, m_Cb, m_Cg, abs_nib, sign_nib, ngb, Vgb);
     
     
     if(it % 15 == 0)
@@ -63,8 +63,16 @@ std::pair<double, double> Bilayer::countDensities(double Vt, double Vb) const
   } while ( !converged );
 
   // printf("iterations: %i\n", it);
+  
+  if(results)
+  {
+    results[0] = ngt;
+    results[1] = ngb;
+    results[2] = Vgt;
+    results[3] = Vgb;
+  }
 
-  return {nt, nb};
+  return {ngt, ngb};
 };
 
 // nl - number of Landau level nl = 0, -/+1, -/+2,...
@@ -115,7 +123,7 @@ double count_E_0(const std::vector<double>& E_nl_vec,
   const double left    = n0*Const::h*M_PI/(4*B) - part_sum;
   const double E_low   = -0.5*Const::eV2au;                         //eV
   const double E_high  = 0.5*Const::eV2au;                          //eV 
-  dmsg("Searching in range: " << E_low << " - " << E_high << "\n");
+  dmsg("Searching E_0 in range: " << E_low << " - " << E_high << "\n");
 
   const size_t size = E_nl_vec.size();
   std::function<double(double)> func = [&E_nl_vec, size, left](double x)
@@ -156,7 +164,7 @@ double count_Vg(double V, double Vg_o, double C, double Cg, double E0, const std
 };
 
 // n0 is ni
-std::pair<double, double> Bilayer::countDensities(double Vt, double Vb, double B) const
+std::pair<double, double> Bilayer::countDensitiesAndPotential(double Vt, double Vb, double B, double* results = nullptr) const
 {
   constexpr double tol = 1e-4;
   Vt *= Const::eV2au;
@@ -169,8 +177,8 @@ std::pair<double, double> Bilayer::countDensities(double Vt, double Vb, double B
 
   // find E0 for n0/ni
   // count basic n0 -> array2D for const L but variable B and variable E = x -> first use E_0 later use E_0 + eVg 
-  double E_0_t = count_E_0(E_nl_vec, m_nit, B, part_sum);
-  double E_0_b = count_E_0(E_nl_vec, m_nib, B, part_sum);
+  double E0t = count_E_0(E_nl_vec, m_nit, B, part_sum); // quasi Fermi Energy top layer
+  double E0b = count_E_0(E_nl_vec, m_nib, B, part_sum); // quasi Fermi Energy bottom layer
 
   // find Vg for E0 
   double Vgt     = 0, Vgb     = 0;
@@ -182,9 +190,9 @@ std::pair<double, double> Bilayer::countDensities(double Vt, double Vb, double B
   {
     it++;
     // t
-    Vgt = count_Vg(Vt, Vgb_old, m_Ct, m_Cg, E_0_t, E_nl_vec, m_nit, B, part_sum);
+    Vgt = count_Vg(Vt, Vgb_old, m_Ct, m_Cg, E0t, E_nl_vec, m_nit, B, part_sum);
     // b
-    Vgb = count_Vg(Vb, Vgt_old, m_Cb, m_Cg, E_0_b, E_nl_vec, m_nib, B, part_sum);
+    Vgb = count_Vg(Vb, Vgt_old, m_Cb, m_Cg, E0b, E_nl_vec, m_nib, B, part_sum);
 
     if ((Vgt - Vgt_old)/Vgt_old < tol && (Vgb - Vgb_old)/Vgb_old < tol)
     {
@@ -195,9 +203,26 @@ std::pair<double, double> Bilayer::countDensities(double Vt, double Vb, double B
     Vgb_old = Vgb;
   } while ( !converged );
 
-  // TODO return n!
+  //obtained result for potentials at Graphene layers
+  double Vg = (Vgt + Vgb)*0.5; // return this
+
+  // from eq.15 and 
+  double ngt = m_nit + m_Cg*(Vgb - Vg) + m_Ct*(Vt - Vg); // return this
+  double ngb = m_nib + m_Cg*(Vgt - Vg) + m_Cb*(Vb - Vg); // return this
+
+  if(results)
+  {
+    results[0] = ngt;
+    results[1] = ngb;
+    results[2] = Vgt;
+    results[3] = Vgb;
+    results[4] = E0t;
+    results[5] = E0b;
+  }
+
+  return {ngt, ngb};
+
   // TODO check if it works
-  // TODO get results
 }
 
 //

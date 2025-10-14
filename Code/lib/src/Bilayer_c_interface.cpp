@@ -18,7 +18,7 @@ void Bilayer_countDensities(const Bilayer* const this_ptr,
                             double Vt, double Vb,
                             double* const nt, double* const nb)
 {
-  auto[nt_temp, nb_temp] = this_ptr->countDensities(Vt, Vb);
+  auto[nt_temp, nb_temp] = this_ptr->countDensitiesAndPotential(Vt, Vb);
   *nt = nt_temp;
   *nb = nb_temp;
 };
@@ -27,7 +27,7 @@ void Bilayer_countDensities_B(const Bilayer* const this_ptr,
                               double Vt, double Vb, double B,
                               double* const nt, double* const nb)
 {
-  auto[nt_temp, nb_temp] = this_ptr->countDensities(Vt, Vb, B);
+  auto[nt_temp, nb_temp] = this_ptr->countDensitiesAndPotential(Vt, Vb, B);
   *nt = nt_temp;
   *nb = nb_temp;
 };
