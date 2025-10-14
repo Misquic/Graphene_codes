@@ -1,4 +1,4 @@
-#include "funkcje.h"
+#include "Bilayer.h"
 #include "Constants.h" // freqquently and widely used variables used as parameters
 
 Bilayer::Bilayer(double nit, double nib,
@@ -23,7 +23,7 @@ inline void count_n_V(double V, double Vg_o, double C, double Cg, double abs_ni,
   Vg = - (delta_n + sign_ni*sqrt_2_nQ_abs_ni) / (C + Cg);
 }
 
-std::pair<double, double> Bilayer::count_densities(double Vt, double Vb)
+std::pair<double, double> Bilayer::countDensities(double Vt, double Vb) const
 {
   constexpr double tol = 1e-4;
   Vt *= Const::eV2au;
@@ -156,7 +156,7 @@ double count_Vg(double V, double Vg_o, double C, double Cg, double E0, const std
 };
 
 // n0 is ni
-std::pair<double, double> Bilayer::count_densities(double Vt, double Vb, double B)
+std::pair<double, double> Bilayer::countDensities(double Vt, double Vb, double B) const
 {
   constexpr double tol = 1e-4;
   Vt *= Const::eV2au;

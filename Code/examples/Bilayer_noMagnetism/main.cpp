@@ -1,6 +1,6 @@
 #include <iostream>
 #include <vector>
-#include "funkcje.h" // functions just for this project
+#include "Bilayer.h" // functions just for this project
 #include "Utilities.h" // my functions for std::vector and other functionalities
 #include "Constants.h" // freqquently and widely used variables used as parameters
         
@@ -72,7 +72,7 @@ int main(int argc, char* argv[]){
       for (size_t j = 0; j < N; j++)
       {
         double Vt = Vt_min + delta_Vt*j;
-        auto[nt_temp, nb_temp] = system.count_densities(Vt, Vb);
+        auto[nt_temp, nb_temp] = system.countDensities(Vt, Vb);
         nt(i, j) = nt_temp/Const::inv_cmsq2au; 
         nb(i, j) = nb_temp/Const::inv_cmsq2au;
       }

@@ -33,6 +33,11 @@ inline constexpr T pow2(T x){
   return x*x;
 }
 
+inline double signum(double x)
+{
+  return x > 0. ? 1. : -1.;
+};
+
 class Rnd{
 protected:
   std::mt19937 mt_gen;

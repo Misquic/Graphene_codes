@@ -11,6 +11,7 @@ main
 *.csv
 *.png
 *.zip
+*.xml
 
 ## CPP
 *.asm

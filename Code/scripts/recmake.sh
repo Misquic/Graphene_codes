@@ -10,3 +10,5 @@ mkdir build/Release
 
 cmake -S . -B ./build/Release -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
 cmake -S . -B ./build/Debug -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Debug
+
+cp build/Release/compile_commands.json .vscode/

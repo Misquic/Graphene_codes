@@ -1,6 +1,6 @@
 #include <iostream>
 #include <vector>
-#include "funkcje.h" // functions just for this project
+#include "Bilayer.h" // functions just for this project
 #include "Utilities.h" // my functions for std::vector and other functionalities
 #include "Constants.h" // freqquently and widely used variables used as parameters
         
@@ -15,6 +15,8 @@ int main(int argc, char* argv[]){
   {
     M = std::atoi(argv[1]);
   }
+
+  // Array with parameters and results [density, Magnetic field, base energy]
   Array2D<double> n(3,M*M);
 
   double n0_min = -8e11*Const::inv_cmsq2au;
