@@ -73,7 +73,7 @@ int main(int argc, char* argv[]){
       for (size_t j = 0; j < N; j++)
       {
         double Vt = Vt_min + delta_Vt*j;
-        auto[nt_temp, nb_temp] = system.countDensities(Vt, Vb);
+        auto[nt_temp, nb_temp] = system.countDensitiesAndPotential(Vt, Vb);
         nt(i, j) = nt_temp/Const::inv_cmsq2au; 
         nb(i, j) = nb_temp/Const::inv_cmsq2au;
       }

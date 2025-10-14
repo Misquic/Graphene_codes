@@ -23,7 +23,8 @@ inline void count_n_V(double V, double Vg_o, double C, double Cg, double abs_ni,
   Vg = - (delta_n + sign_ni*sqrt_2_nQ_abs_ni) / (C + Cg);
 }
 
-std::pair<double, double> Bilayer::countDensitiesAndPotential(double Vt, double Vb, double* results = nullptr) const
+std::pair<double, double> Bilayer::countDensitiesAndPotential(
+  double Vt, double Vb, double* results) const
 {
   constexpr double tol = 1e-4;
   Vt *= Const::eV2au; // Top gate voltage
@@ -140,7 +141,8 @@ double count_E_0(const std::vector<double>& E_nl_vec,
 };
 
 // realises eq. nr 16
-double count_Vg(double V, double Vg_o, double C, double Cg, double E0, const std::vector<double>& E_nl_vec, double n0, double B, double part_sum)
+double count_Vg(double V, double Vg_o, double C, double Cg, double E0,
+                const std::vector<double>& E_nl_vec, double n0, double B, double part_sum)
 {
   const double left = (n0 - part_sum*4*B/(Const::h*M_PI) + C*V + Cg*Vg_o)*(Const::h*M_PI)/(4*B);
   const double Vg_low = -10; //eV ?
@@ -164,7 +166,8 @@ double count_Vg(double V, double Vg_o, double C, double Cg, double E0, const std
 };
 
 // n0 is ni
-std::pair<double, double> Bilayer::countDensitiesAndPotential(double Vt, double Vb, double B, double* results = nullptr) const
+std::pair<double, double> Bilayer::countDensitiesAndPotential(
+  double Vt, double Vb, double B, double* results) const
 {
   constexpr double tol = 1e-4;
   Vt *= Const::eV2au;

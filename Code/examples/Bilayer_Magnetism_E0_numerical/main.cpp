@@ -51,5 +51,6 @@ int main(int argc, char* argv[]){
   
   save(n, "results/n_map.csv");
 
+  std::cout << "end\n";
   return 0;
 }
