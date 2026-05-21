@@ -2,9 +2,46 @@
 #define UTILITIES_H
 
 #ifdef DEBUG
-#define dmsg(x) std::cerr << x
+#include <stacktrace>
+#define assertVerbose(cond, mess) do \
+{ \
+  if (!(cond)) \
+  { \
+    std::cerr << mess << "\nStacktrace:\n" << std::stacktrace::current() << '\n'; \
+    throw std::runtime_error(#cond " is false\n"); \
+  } \
+} \
+while (false) \
+
+#else
+#define assertVerbose(cond, mess)
+#endif
+
+#ifdef DEBUG
+#define dmsg(x) std::cerr << x << '\n'
 #else
 #define dmsg(x)
+#endif
+
+#define RED(r) "\033[38;2;" #r ";0;0m"
+#define GREEN(g) "\033[38;2;0;" #g ";0m"
+#define BLUE(b) "\033[38;2;0;0;" #b "m"
+#define RESET "\033[0m"
+
+#ifdef DEBUG
+#define LOG(x) std::cerr << RED(200) "File: " << __FILE_NAME__ << ":"\
+<<__LINE__<<" line:\n" GREEN(200) <<#x<<RESET"\n";\
+x
+#else
+#define LOG(x)
+#endif
+
+#ifdef DEBUG
+#define LOG_VAR_STR(x) RED(200) #x ": " GREEN(200) +  str(x) + "\n" RESET
+#define LOG_VAR(x) std::cerr << RED(200) #x ": " GREEN(200)<< x << "\n" RESET;
+#else
+#define LOG_VAR_STR(x)
+#define LOG_VAR(x)
 #endif
 
 #include <iostream>
@@ -22,20 +59,94 @@
 
 ////////////////// always implemented: //////////////////
 
-double bisection(double x_left, double x_right, std::function<double(double)>& func);
 double newton(int n, int k);
 size_t newton_size_t(int n, int k);
 double newton_double(int n, int k);
 double time();
 
 template<typename T>
-inline constexpr T pow2(T x){
+inline constexpr T clamp(const T value, const T min, const T max)
+{
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
+template<typename T>
+double progressBar(const T current, const T bound1, const T bound2)
+{
+  const T min = std::min(bound1, bound2);
+  const T max = std::max(bound1, bound2);
+  const T range = max - min;
+  const T dist = current - min;
+  const double percent = dist / range * 100;
+
+  std::cout << "\rProgress = " << std::setw(5) << std::setprecision(4) <<
+               percent << " %" << std::flush;
+  return percent;
+}
+
+template<typename T>
+std::vector<T> linspace(const T start, const T end, const T step)
+{
+  const size_t size = (end - start)/step + 1;
+
+  std::vector<T> numbers(size);
+
+  size_t index = 0;
+  for (T& value: numbers)
+  {
+    value = start + index * step;
+
+    index++;
+  }
+
+  return numbers;
+};
+
+template<typename T>
+std::vector<T> linspaceN(const T start, const T end, const size_t num)
+{
+  std::vector<T> numbers(num);
+
+  T step = (end - start)/(num - 1);
+
+  size_t index = 0;
+  for (T& value: numbers)
+  {
+    value = start + index * step;
+
+    index++;
+  }
+
+  return numbers;
+};
+
+template<typename T>
+constexpr inline T pow2(T x){
   return x*x;
 }
 
-inline double signum(double x)
+constexpr inline double signum(double x)
 {
   return x > 0. ? 1. : -1.;
+};
+
+constexpr inline int signum(int x)
+{
+  return x > 0 ? 1 : -1;
+};
+
+constexpr inline long signum(long x)
+{
+  return x > 0l ? 1l : -1l;
+};
+
+template<typename T>
+constexpr inline bool isBetween(const T value, const T bound1, const T bound2)
+{
+  return (bound1 <= value && value <= bound2) ||
+         (bound2 <= value && value <= bound1);
 };
 
 class Rnd{
@@ -230,7 +341,7 @@ std::ostream& operator<<(std::ostream& out, const std::vector<T>& vec){
   return out;
 }
 //////////////////////////////////////////////////////////////////////
-// Array2D 
+// Array2D
 //////////////////////////////////////////////////////////////////////
 template<class data_type>
 class Array2D{
@@ -358,7 +469,7 @@ Array2D<data_type>& Array2D<data_type>::operator=(Array2D<data_type>&& other){
 
 template<class data_type>
 data_type& Array2D<data_type>::operator()(size_t i, size_t j){
-  assert(i < m_Ni && j < m_Nj);
+  assertVerbose(i < m_Ni && j < m_Nj, i << ' ' << m_Ni << ' ' << j << ' ' << m_Nj);
   return m_data[i*m_Nj+j];
 }
 template<class data_type>
@@ -369,7 +480,7 @@ data_type& Array2D<data_type>::operator[](size_t index){
 
 template<class data_type>
 const data_type& Array2D<data_type>::operator()(size_t i, size_t j) const{
-  assert(i < m_Ni && j < m_Nj);
+  assertVerbose(i < m_Ni && j < m_Nj, i << ' ' << m_Ni << ' ' << j << ' ' << m_Nj);
   return m_data[i*m_Nj+j];
 }
 
@@ -380,7 +491,7 @@ const data_type& Array2D<data_type>::operator[](size_t index) const{
 };
 template<class data_type>
 size_t Array2D<data_type>::size() const{
-  return m_data.size();        
+  return m_data.size();
 };
 template<class data_type>
 size_t Array2D<data_type>::sizeI() const{
@@ -429,7 +540,7 @@ void Array2D<data_type>::apply_ref(std::function<data_type(data_type &a)> func){
     *it_begin = func(*it_begin);
   }
 };
-    
+
 template<class data_type>
 data_type Array2D<data_type>::max() const{
   return std::max_element(m_data.begin(), m_data.end())[0];
@@ -475,9 +586,9 @@ void Array2D<data_type>::transpose_inplace(){
           std::cout << "wait!";
           std::cout << "moved: \n" << moved << "\n";
           std::cout << "m_data" << m_data << "\n";
-          std::cout << "(*this): " << (*this) << "\n"; 
+          std::cout << "(*this): " << (*this) << "\n";
         }
-        current_switching_index = next_comes_from; 
+        current_switching_index = next_comes_from;
         next_comes_from = permute_transpose_inplace(next_comes_from, m_Nj, m_Ni);
         elemets_switched++;
       }
@@ -485,7 +596,7 @@ void Array2D<data_type>::transpose_inplace(){
       m_data[goes_to] = std::move(value_that_goes);
 
       elemets_switched++;
-      
+
       if(elemets_switched == m_Ni*m_Nj){
         break;
       }
@@ -586,7 +697,7 @@ std::vector<data_type> Array2D<data_type>::operator*(const std::vector<data_type
   return result;
 };
 
-template<class data_type> 
+template<class data_type>
 Array2D<data_type> Array2D<data_type>::operator*(const data_type val) const{
   Array2D<data_type> result((*this));
 
@@ -605,7 +716,7 @@ Array2D<data_type> Array2D<data_type>::operator+(const Array2D<data_type>& other
   if(m_Ni != other.m_Ni || m_Nj!=other.m_Nj){
     throw std::runtime_error("matrix + matrix invalid sizes!\n");
   }
-  
+
   Array2D<data_type> result((*this)); // copy
   for(size_t i = 0; i < m_Ni*m_Nj; i++)
   {
@@ -656,43 +767,43 @@ void set_colorbar(std::stringstream& ss, T val, T min, T max){
   ss << "\033[48;2;";
   ss << r << ';' << g << ';' << b << 'm';
 };
-template<typename T, 
+template<typename T,
          typename = std::enable_if_t<std::is_integral_v<T>>>
 void set_color_bcg(std::stringstream& ss, T color){
   ss << "\033[48;2;" << color << ';' << color << ';' << color << 'm';
 };
-template<typename T, 
+template<typename T,
          typename = std::enable_if_t<std::is_integral_v<T>>>
 void set_color_bcg(T color){
   std::cout << "\033[48;2;" << color << ';' << color << ';' << color << 'm';
 };
-template<typename T, 
+template<typename T,
          typename = std::enable_if_t<std::is_integral_v<T>>>
 void set_color_bcg(std::stringstream& ss, T r, T g, T b){
   ss << "\033[48;2;" << r << ';' << g << ';' << b << 'm';
 };
-template<typename T, 
+template<typename T,
          typename = std::enable_if_t<std::is_integral_v<T>>>
 void set_color_bcg(T r, T g, T b){
   std::cout << "\033[48;2;" << r << ';' << g << ';' << b << 'm';
 };
 
-template<typename T, 
+template<typename T,
          typename = std::enable_if_t<std::is_integral_v<T>>>
 void set_color_letter(std::stringstream& ss, T color){
   ss << "\033[38;2;" << color << ';' << color << ';' << color << 'm';
 };
-template<typename T, 
+template<typename T,
          typename = std::enable_if_t<std::is_integral_v<T>>>
 void set_color_letter(T color){
   std::cout << "\033[38;2;" << color << ';' << color << ';' << color << 'm';
 };
-template<typename T, 
+template<typename T,
          typename = std::enable_if_t<std::is_integral_v<T>>>
 void set_color_letter(std::stringstream& ss, T r, T g, T b){
   ss << "\033[38;2;" << r << ';' << g << ';' << b << 'm';
 };
-template<typename T, 
+template<typename T,
          typename = std::enable_if_t<std::is_integral_v<T>>>
 void set_color_letter(T r, T g, T b){
   std::cout << "\033[38;2;" << r << ';' << g << ';' << b << 'm';
@@ -795,7 +906,7 @@ void print_hist(const Array2D<T>& hist, bool cutting = false){
     auto stop = hist.end();
     T lower_max = min;
     T higher_min = max;
-    
+
     for(;start!=stop;++start){
       T val = start[0];
       if(val < min + higher_bound*range){
@@ -811,7 +922,7 @@ void print_hist(const Array2D<T>& hist, bool cutting = false){
         }
       }
     }
-    
+
     if(static_cast<double>(count_below)/hist.size() > higher_bound){
       max = lower_max;
       dmsg("seting lower_max\n");
@@ -902,9 +1013,10 @@ bool save(const T& data, const std::string& path = "save.csv", const char mode =
   }
 
   if(!file.is_open()){
-    std::cerr << "Failed to open file: \"" + path + "\"\n"; 
+    std::cerr << "Failed to open file: \"" + path + "\"\n";
     return false;
   }
+
   try
   {
     file << data;
@@ -932,13 +1044,140 @@ bool save_scalar(T data, const std::string& path, const char mode){
   }
 
   if(!file.is_open()){
-    std::cerr << "Failed to open file: \"" + path + "\"\n"; 
+    std::cerr << "Failed to open file: \"" + path + "\"\n";
     return false;
   }
-  
+
   file << data << ",";
 
   return true;
 }
+
+
+template<typename Func>
+void testForBisection(
+  double xLeft, double xRight, Func& func)
+{
+  constexpr unsigned int MAX_BISECTION_TEST_STEPS = 300;
+
+  double yLeft = func(xLeft);
+  double yRight = func(xRight);
+  if (yLeft == 0 && yRight == 0) return;
+
+  const double delta = (xRight - xLeft) / MAX_BISECTION_TEST_STEPS;
+
+  if (yLeft < yRight)
+  {
+    assertVerbose(
+      yLeft < 0 && yRight > 0,
+      "function doesn't cross 0, yLeft=" << yLeft << " yRight=" << yRight << '\n');
+
+    double yPrev = yLeft;
+    // go from left to right, every next value must be bigger then previous one
+    for (double x = xLeft + delta; x < xRight + delta; x += delta)
+    {
+      double yCurr = func(x);
+      assertVerbose(
+        yCurr > yPrev,
+        "function is not monotonic: stops increasing on " << x <<
+        " xLeft=" << xLeft << " xRight=" << xRight << '\n');
+
+      yPrev = yCurr;
+    }
+  }
+  else if (yLeft > yRight)
+  {
+    assertVerbose(
+      yLeft > 0 && yRight < 0,
+      "function doesn't cross 0, yLeft=" << yLeft << " yRight=" << yRight << '\n');
+
+    double yPrev = yLeft;
+    // go from left to right, every next value must be less then previous one
+    for (double x = xLeft + delta; x < xRight + delta; x += delta)
+    {
+      double yCurr = func(x);
+      assertVerbose(
+        yCurr < yPrev,
+        "function is not monotonic: stops decreasing on " + str(x) +
+        " xLeft=" + str(xLeft) + " xRight=" + str(xRight) << '\n');
+
+      yPrev = yCurr;
+    }
+  }
+  else
+  {
+    assertVerbose(yLeft != yRight, "Both edge values must be different signs");
+  }
+}
+
+// finds x for which func(x) is lowerr than tol, !!! make sure func crosses zero in range x_left xright at least and only one time !!!
+template<typename Func>
+double bisection(double xLeft, double xRight, Func&& func)
+{
+  #ifdef DEBUG
+  testForBisection(xLeft, xRight, func);
+  #endif
+  constexpr int N_max = 32;
+  constexpr double tol = 1e-7;
+
+  double yLeft = func(xLeft);
+  double yRight = func(xRight);
+  // dmsg("xl: " << xLeft << " xr: " << xRight << " yl: " << yLeft << " yr: " << yRight);
+
+  if (yLeft == 0 && yRight == 0) return (xLeft + xRight) * 0.5;
+
+  if (yLeft < 0 && yRight > 0)
+  {
+    for(int i = 0; i < N_max; i++){
+      double x_new = (xLeft + xRight)*0.5;
+      double y_new = func(x_new);
+
+      // dmsg( "y_new: " << y_new << "\n");
+      if( std::abs(y_new) < tol )
+      {
+        return x_new;
+      }
+
+      if(y_new < 0)
+      {
+        xLeft = x_new;
+      }
+      else
+      {
+        xRight = x_new;
+      }
+    }
+  }
+  else if(yRight < 0 && yLeft > 0)
+  {
+    for(int i = 0; i < N_max; i++){
+      double x_new = (xLeft + xRight)*0.5;
+      double y_new = func(x_new);
+
+      // dmsg( "y_new: " << y_new << "\n");
+      if( std::abs(y_new) < tol )
+      {
+        return x_new;
+      }
+
+      if(y_new > 0)
+      {
+        xLeft = x_new;
+      }
+      else
+      {
+        xRight = x_new;
+      }
+    }
+  }
+  else{
+    throw std::invalid_argument("Error in bisection! func(xLeft) == func(xRight)"
+      " = 0 or both have same sign: " + str(yLeft) + " | " + str(yRight) + "\n");
+  }
+
+
+  dmsg("returning case 3");
+  return (xLeft + xRight) * 0.5;
+};
 
 #endif//UTILITIES_H

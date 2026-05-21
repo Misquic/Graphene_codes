@@ -2,13 +2,11 @@
 #include <vector>
 #include "Bilayer.h" // functions just for this project
 #include "Utilities.h" // my functions for std::vector and other functionalities
-#include "Constants.h" // frequently and widely used variables used as parameters
+#include "Constants.h" // freqquently and widely used variables used as parameters
         
 int main(int argc, char* argv[]){
 
-  std::cout << "Program calculates E0 numerically in Graphene in Magnetic field (eq.14)\n";
-
-  size_t M = 100;
+  size_t M = 10;
   if(argc >= 2)
   {
     M = std::atoi(argv[1]);
@@ -51,6 +49,5 @@ int main(int argc, char* argv[]){
   
   save(n, "results/n_map.csv");
 
-  std::cout << "end\n";
   return 0;
 }

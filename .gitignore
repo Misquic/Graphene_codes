@@ -6,12 +6,18 @@ Code/examples/**/*.sh
 README.pdf
 *.exe
 main
+commands.txt
+__pychache__/
+Displayer/
+build
 
 ## DATA
 *.csv
+*.dat
 # *.png
 *.zip
 *.xml
+*.ansi
 
 ## CPP
 *.asm

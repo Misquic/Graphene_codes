@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(GrapheneCalculations LANGUAGES CXX Fortran)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 
 # compilation flags
 if(NOT CMAKE_BUILD_TYPE)
@@ -22,4 +22,5 @@ add_subdirectory(lib)
 add_subdirectory(examples/Bilayer_Magnetism_E0_numerical)
 add_subdirectory(examples/Bilayer_noMagnetism)
 add_subdirectory(examples/Bilayer_transport_v0)
+add_subdirectory(examples/Bilayer_Magnetism_voltages)
 # add_subdirectory(examples/Bilayer_Magnetism_densities)

@@ -4,72 +4,7 @@
 
 Rnd rnd;
 
-
-
 ////////////////// always implemented: //////////////////
-
-// finds x for which func(x) is lowerr than tol, !!! make sure func crosses zero in range x_left xright at least and only one time !!!
-double bisection(double x_left, double x_right, std::function<double(double)>& func){
-    constexpr int N_max = 64;
-    constexpr double tol = 1e-7;
-    
-    double y_left = func(x_left);
-    double y_right = func(x_right);
-    
-    if(y_left < 0 && y_right > 0)
-    {
-        for(int i = 0; i < N_max; i++){
-            double x_new = (x_left + x_right)*0.5;
-            double y_new = func(x_new);
-
-            dmsg( "y_new: " << y_new << "\n");
-            if( std::abs(y_new) < tol )
-            {
-                dmsg("returning normally case 1\n");
-                return x_new;
-            }
-            
-            if(y_new < 0)
-            {
-                x_left = x_new;
-            }
-            else
-            {
-                x_right = x_new;
-            }
-        }
-    }
-    else if(y_right < 0 && y_left > 0)
-    {
-        for(int i = 0; i < N_max; i++){
-            double x_new = (x_left + x_right)*0.5;
-            double y_new = func(x_new);
-
-            dmsg( "y_new: " << y_new << "\n");
-            if( std::abs(y_new) < tol )
-            {
-                dmsg("returning normally case 2\n");
-                return x_new;
-            }
-            
-            if(y_new > 0)
-            {
-                x_left = x_new;
-            }
-            else
-            {
-                x_right = x_new;
-            }
-        }
-    }
-    else{
-        throw std::invalid_argument("Error in bisection! func(x_left) == func(x_right) = 0 or both have same sign: " +str(y_left) + " | " + str(y_right) + "\n");
-    }
-
-    dmsg("returning case 3\n");
-    return (x_left + x_right) * 0.5;
-
-};
 
 double newton(int n, int k){
     if(n < 0 || k < 0) return 0;
@@ -86,9 +21,9 @@ double newton(int n, int k){
         double newton_value = newton_double(n,k);
         assert(!std::isinf(newton_value));
         return newton_value;
-    }   
+    }
     if(n>69) return newton_double(n,k);
-    return newton_size_t(n,k); 
+    return newton_size_t(n,k);
 }
 
 double newton_double(int n, int k){ // wont overflow until n > 1020 and k > 495
@@ -132,7 +67,7 @@ double Rnd::operator()(){
     return rnd_dist(mt_gen);
 };
 double Rnd::operator()(const double& min, const double& max){
-    return min + rnd_dist(mt_gen)*(max - min); 
+    return min + rnd_dist(mt_gen)*(max - min);
 };
 
 bool save(double data, const std::string& path, const char mode){
@@ -152,13 +87,13 @@ void reset_color(std::stringstream& ss){
 }
 
 size_t permute_transpose_inplace(size_t a, size_t new_first_dim, size_t new_second_dim){
-    size_t MN_1 = new_first_dim*new_second_dim-1; 
+    size_t MN_1 = new_first_dim*new_second_dim-1;
     if(a == MN_1) return MN_1;
-    return (new_first_dim*a)%MN_1;  
+    return (new_first_dim*a)%MN_1;
 };
 
 bool is_minimal_in_cycle(size_t a, size_t new_first_dim, size_t new_second_dim){
-    // size_t MN_1 = new_first_dim*new_second_dim-1; 
+    // size_t MN_1 = new_first_dim*new_second_dim-1;
     size_t current_value = permute_transpose_inplace(a, new_first_dim, new_second_dim);
 
     while(current_value!=a){
@@ -169,7 +104,7 @@ bool is_minimal_in_cycle(size_t a, size_t new_first_dim, size_t new_second_dim){
 };
 
 size_t inverse_permute_transpose_inplace(size_t a, size_t new_first_dim, size_t new_second_dim){
-    size_t MN_1 = new_first_dim*new_second_dim-1; 
+    size_t MN_1 = new_first_dim*new_second_dim-1;
     if(a == MN_1) return MN_1;
-    return (new_second_dim*a)%MN_1;  
+    return (new_second_dim*a)%MN_1;
 };
