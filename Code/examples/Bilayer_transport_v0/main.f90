@@ -2,14 +2,14 @@
 ! that twisted boundary is not taken into account, there is just flip of magnetic
 ! field. System looks like this (x and y used are for 1 view reference, not physical coordinates)
 !    (unfolded view)            !   (side view left)             (side view right)        (side view front)
-! y   ________________________  !   ____lead1___________        ____lead2___________     ___                   ___
+! X   ________________________  !   ____lead1___________        ____lead2___________     ___                   ___
 ! ^  |l|  top              |l|  !   |  ___top__gate___ |        |  ___top__gate___ |     |l|  ___top_gate___  |l|
 ! |  |e|  B = (0,0,Bz)     |e|  !   |  _______top_____ |     ^  | _______top_____  |     |e|_______top________|e|
 ! |  |a|___________________|a|  !   | /                | B = |  |                \ |     |a|                  |a|
 ! |  |d|  bottom           |d|  !   | \_____bottom____ |     |  | _____bottom____/ |     |d|_____bottom_______|d|
 ! |  |1|  B = (0,0,-Bz)    |2|  !   |  __bottom_gate__ |        |  __bottom_gate__ |     |1|  _bottom__gate_  |2|
 ! |  |_|___________________|_|  !   |__________________|        |__________________|     |_|                  |_|
-! *--------------> x            !
+! *--------------> Y            !
 !
 ! Coupling between layers is taken into account with Bilayer class, transport is
 ! calculated using Bubel
@@ -23,8 +23,8 @@ program main
   type(qscatter) :: qt
 
   ! Shared variables used by internal procedures
-  doubleprecision :: half_y             ! Y coordinate of fold
-  doubleprecision :: half_x             !
+  doubleprecision :: middle_y             ! Y coordinate of fold
+  doubleprecision :: middle_x             !
   character(len=512) :: results_dir = "./results" ! Directory for output files
 
   doubleprecision :: Bz = 8 ! B = (0, 0, Bz) !T
@@ -33,9 +33,9 @@ program main
   doubleprecision :: Vgt, Vgb, E0t, E0b, nt, nb ! result from Bilayer
   doubleprecision :: Ef                 ! Fermi energy for calculations
 
-  integer        ,parameter :: nx          = 20      ! numbers of atoms in x direction (keep even)
-  integer        ,parameter :: ny          = 51      ! numbers of atoms in y direction (keep odd)
-  integer        ,parameter :: sf          = 1        ! scaling factor
+  integer        ,parameter :: sf          = 8       ! scaling factor
+  integer        ,parameter :: nx          = 24 * (8 / sf)        ! numbers of atoms / 2 in x direction
+  integer        ,parameter :: ny          = 48 * (8 / sf) + 1    ! ~numbers of atoms / 2 in y direction (keep odd)
   doubleprecision,parameter :: T2au        = 4.254382E-6          ! B(au) = B(T)*T2au
   doubleprecision,parameter :: eV2au       = 0.03674932587122423  ! V(au)  = V(eV)*eV2au
   doubleprecision,parameter :: nm2au       = 1.0/0.0529           ! d(au)  = d(nm)*nm2au
@@ -231,27 +231,35 @@ contains
     implicit none
 
     type(qatom) :: qa
-
     ! graphene parameters
-    doubleprecision,parameter :: alpha30         = 30.0/180.0*M_PI
-
+    doubleprecision,parameter :: alpha30                = 30.0/180.0*M_PI
     doubleprecision,parameter :: vecs_armchair(2,2)     = (/  (/ 1.0D0,0.0D0 /) , (/ sin(alpha30) , cos(alpha30) /) /) * sf
     doubleprecision,parameter :: atoms_armchair(2,2)    = (/  (/ 0.0D0,0.0D0 /) , (/ 0.0D0 , one_over_sqrt_3 /) /) * sf
-    doubleprecision,parameter :: pos_offset_armchair(2) = (/ -sin(alpha30), 0.0D0 /) * sf
+    doubleprecision,parameter :: pos_offset_armchair(2) = (/ -sin(alpha30), -cos(alpha30) /) * sf
+    integer        ,parameter :: atomA                  = 1, atomB = 2 ! sublattices flags
 
     ! local variables
-    integer,parameter :: atomA = 1, atomB = 2 ! sublattices flags
-    integer ::         i, j, atom          ! loop variables
-    doubleprecision :: atom_pos(3)         !
-    doubleprecision :: x_min = atoms_armchair(0,0), x_max = atoms_armchair(0,0)
-    doubleprecision :: y_min = atoms_armchair(0,1), y_max = atoms_armchair(0,1)
-    type(c_ptr)     :: bilayer
+    integer           :: i, j, atom           ! loop variables
+    doubleprecision   :: atom_pos(3)
+    doubleprecision   :: pos_max(2) = (/ 0.0D0, 0.0D0/)
+    doubleprecision   :: pos_min(2) = pos_offset_armchair * 0.5 + 0.001 ! 0.001 is to ommit numerical errors
+    doubleprecision   :: x_min = atoms_armchair(0,0), x_max = atoms_armchair(0,0)
+    doubleprecision   :: y_min = atoms_armchair(0,1), y_max = atoms_armchair(0,1)
+    type(c_ptr)       :: bilayer
 
 ! --------------------------------------------------------------------------------------------------
     call qt%init_system()
     QSYS_DEBUG_LEVEL = 0
     QSYS_FORCE_SCHUR_DECOMPOSITION  = .true. ! use schur method to calculate modes which is more stable
     ! QSYS_SCATTERING_METHOD = QSYS_SCATTERING_QTBM
+
+    ! some magic to have nice edges
+    pos_max = atoms_armchair(:, 2) + nx * vecs_armchair(:,1) + ny * vecs_armchair(:,2) - 0.001 ! 0.001 is to ommit numerical errors
+    pos_max(1) = pos_max(1) - 2 * (ny / 2) * vecs_armchair(1,2)
+    pos_max(2) = pos_max(2) + 2 * pos_offset_armchair(2)
+
+    print*, "x_min", x_min, " x_max", x_max
+    print*, "y_min", y_min, " y_max", y_max
 
     ! Generate atoms positions
     do i = 0, nx
@@ -263,23 +271,33 @@ contains
             pos_offset_armchair ! base offset
 
           ! works only with armchair
-          atom_pos(1) = atom_pos(1) - 2*(j/2) * vecs_armchair(1,2) ! shift "rows" to make flake rectangular
+          atom_pos(1) = atom_pos(1) - 2 * (j / 2) * vecs_armchair(1,2) ! shift "rows" to make flake rectangular
 
-          x_max = max(x_max, atom_pos(1))
-          x_min = min(x_min, atom_pos(1))
-          y_max = max(y_max, atom_pos(2))
-          y_min = min(y_min, atom_pos(2))
+          if (atom_pos(1) > pos_min(1) .and. &
+              atom_pos(2) > pos_min(2) .and. &
+              atom_pos(1) < pos_max(1) .and. &
+              atom_pos(2) < pos_max(2) &
+              )then
+              ! atom_pos(1) < x_max + pos_offset_armchair(1) / 2) then
 
-          call qa%init( (/atom_pos(1), atom_pos(2), 0.0D0 /), flag=atom) ! create qatom
-          call qt%qsystem%add_atom(qa) ! add qatom to system
+            x_max = max(x_max, atom_pos(1))
+            x_min = min(x_min, atom_pos(1))
+            y_max = max(y_max, atom_pos(2))
+            y_min = min(y_min, atom_pos(2))
+
+            call qa%init( (/atom_pos(1), atom_pos(2), 0.0D0 /), flag=atom) ! create qatom
+            call qt%qsystem%add_atom(qa) ! add qatom to system
+          endif
         enddo
       enddo
     enddo
 
-    half_x = 0.5 * (x_min + x_max)
-    half_y = 0.5 * (y_min + y_max)
+    middle_x = 0.5 * (x_min + x_max)
+    middle_y = 0.5 * (y_min + y_max)
 
-    print*, "half_x", half_x, " half_y", half_y
+    print*, "middle_x", middle_x, " middle_y", middle_y
+    print*, "x_min", x_min, " x_max", x_max
+    print*, "y_min", y_min, " y_max", y_max
 
     ! Coupling between atoms, onsite energies
     qt%qnnbparam%distance = 0.6 * sf
@@ -289,12 +307,7 @@ contains
 
     bilayer = Bilayer_constructor_default()
 
-    ! if (Bz == 0) then
-    !   call Bilayer_countEnergiesAndPotential(bilayer, Vt, Vb, Vgt, Vgb)
-    ! else
-      ! call Bilayer_countEnergiesAndPotential_B(bilayer, Vt, Vb, Bz, Vgt, Vgb, E0t, E0b)
-      call Bilayer_countAll_B(bilayer, Vt, Vb, Bz, Vgt, Vgb, E0t, E0b, nt, nb)
-    ! endif
+    call Bilayer_countAll_B(bilayer, Vt, Vb, Bz, Vgt, Vgb, E0t, E0b, nt, nb)
 
     print*, "Vgt: ", Vgt, " eV"
     print*, " Vgb ", Vgb, " eV"
@@ -314,42 +327,65 @@ contains
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    ! ! lead_translation = (/0.0D0, vecs_armchair(2,2)/)
-    ! lead_translation = vecs_armchair(:,2)
-    ! print*, "lead_translation: ", lead_translation
+    ! call addYInvLeads(y_min, y_max, (x_max - x_min) * 1.1 * 0.5, vecs_armchair)
 
-    ! ! First lead (lower Y side)
-    ! call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
-    !                           x_min - 0.1, x_max + 0.1, &
-    !                           y_min - 0.1, y_min + vecs_armchair(2,2)  - 0.1)
-    ! call qt%add_lead(rect_shape, (/lead_translation(1), lead_translation(2), 0.0D0 /))
-
-    ! if (save_bands) then
-    !   call qt%leads(1)%bands(trim(results_dir)//"/bands.dat", &
-    !                         -M_PI / one_over_sqrt_3, +M_PI/ one_over_sqrt_3, M_PI/ one_over_sqrt_3/160.0, & !k_min, k_max, dk
-    !                         -3.0D0 * eV2au, 3.0D0 * eV2au) !E_min, E_max
-    ! endif
-
-    ! ! Second lead (upper Y side)
-    ! call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
-    !                           x_min - 0.1                 , x_max + 0.1, &
-    !                           y_max - vecs_armchair(2,2) + 0.1, y_max + 0.1)
-
-    ! call qt%add_lead(rect_shape, (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
-
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-    ! call addYLeads(x_min, x_max, (y_max - y_min) * 0.25D0, vecs_armchair)
-    call addYLeads(x_min, x_max, 20.0D0, vecs_armchair)
+    call addXInvLeads(x_min, x_max, (y_max - y_min) * 1.1, vecs_armchair)
 
   end subroutine
 ! --------------------------------------------------------------------------------------------------
 
 
+
+  ! --------------------------------------------------------------------------------------------------
+! Add 2 leads on Y sides, Y invariant?
 ! --------------------------------------------------------------------------------------------------
-! Add 2 leads on Y sides
+  subroutine addYInvLeads(y_min, y_max, leadLength, vecs_armchair)
+    use modscatter
+    use modunits
+    use modshape
+    implicit none
+
+    type(qshape) :: rect_shape
+    doubleprecision :: lead_translation(2) = (/ 0.0D0, 0.0D0 /)!
+    doubleprecision, intent(in) :: y_min, y_max, leadLength
+    doubleprecision, dimension(2,2), intent(in) :: vecs_armchair
+
 ! --------------------------------------------------------------------------------------------------
-  subroutine addYLeads(x_min, x_max, leadLength, vecs_armchair)
+
+    lead_translation = vecs_armchair(:,2)
+    print*, "lead_translation: ", lead_translation
+
+    ! First lead (lower Y side)
+    call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
+                              middle_x - 0.1 - leadLength / 2, &
+                              middle_x + 0.1 + leadLength / 2, &
+                              y_min - 0.1, &
+                              y_min + vecs_armchair(2,2)  - 0.1)
+    call qt%add_lead(rect_shape, (/lead_translation(1), lead_translation(2), 0.0D0 /))
+
+    if (save_bands) then
+      call qt%leads(1)%bands(trim(results_dir)//"/bands.dat", &
+                            -M_PI / one_over_sqrt_3, +M_PI/ one_over_sqrt_3, M_PI/ one_over_sqrt_3/160.0, & !k_min, k_max, dk
+                            -3.0D0 * eV2au, 3.0D0 * eV2au) !E_min, E_max
+    endif
+
+    ! Second lead (upper Y side)
+    call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
+                              middle_x - 0.1 - leadLength / 2, &
+                              middle_x + 0.1 + leadLength / 2, &
+                              y_max - lead_translation(2) + 0.1, &
+                              y_max + 0.1)
+
+    call qt%add_lead(rect_shape, (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
+
+  end subroutine
+
+
+
+! --------------------------------------------------------------------------------------------------
+! Add 2 leads on X sides, x invariant?
+! --------------------------------------------------------------------------------------------------
+  subroutine addXInvLeads(x_min, x_max, leadLength, vecs_armchair)
     use modscatter
     use modunits
     use modshape
@@ -364,12 +400,12 @@ contains
 
     lead_translation = (/vecs_armchair(1,1), 0.0D0/)
     print*, "lead_translation: ", lead_translation
-    ! First lead (left side)
+    ! First lead (lower X)
     call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
                               x_min - 0.1, &
                               x_min + lead_translation(1) - 0.1, &
-                              half_y - 0.1 - leadLength / 2, &
-                              half_y + 0.1 + leadLength / 2)
+                              middle_y - 0.1 - leadLength / 2, &
+                              middle_y + 0.1 + leadLength / 2)
 
     call qt%add_lead(rect_shape, (/lead_translation(1), lead_translation(2), 0.0D0 /))
 
@@ -379,12 +415,12 @@ contains
                             -3.0D0 * eV2au, 3.0D0 * eV2au) !E_min, E_max
     endif
 
-    ! Second lead (right side)
+    ! Second lead (higher X)
     call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
                               x_max - lead_translation(1) + 0.1, &
                               x_max + 0.1, &
-                              half_y - 0.1 - leadLength / 2, &
-                              half_y + 0.1 + leadLength / 2)
+                              middle_y - 0.1 - leadLength / 2, &
+                              middle_y + 0.1 + leadLength / 2)
 
     call qt%add_lead(rect_shape, (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
 
@@ -420,13 +456,13 @@ contains
       xB = atomB%atom_pos(1)
       yB = atomB%atom_pos(2)
       B = Bau
-      if ((yB + yA) * 0.5 < half_y) B = -Bau ! bottom
+      if ((yB + yA) * 0.5 < middle_y) B = -Bau ! bottom
 
       ! Peierls phase
       phi = B * (yB + yA) * (xB - xA) * gu2au_squared
       coupling_val = t0 * exp(II*phi)
 
-      if ((yB + yA) * 0.5 < half_y) then ! bottom
+      if ((yB + yA) * 0.5 < middle_y) then ! bottom
         coupling_val = coupling_val + E0b - Vgb ! Vgb & E0b is already in au
 
       else ! top
@@ -560,7 +596,7 @@ contains
 end program main
 
 ! TODO
-! - skalowanie np 8
+! - skalowanie np 8 (czy przy skalowaniu wystarczy mniejszy np 48x96)
 ! - powiększyć układ
 ! - poszerzyć leady
 ! - G = 2e^2/h*T

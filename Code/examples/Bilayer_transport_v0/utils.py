@@ -100,7 +100,7 @@ def printArgs(args: dict) -> None:
     print()
 
 def progressBar(current, min, max, timeStart) -> None:
-    range = max - min
+    range = max - min + 1
     dist = current - min
 
     timeNow = time.time()
