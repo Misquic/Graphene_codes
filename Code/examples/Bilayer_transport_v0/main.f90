@@ -38,10 +38,10 @@ program main
 
   doubleprecision,parameter :: T2au        = 4.254382E-6          ! B(au) = B(T)*T2au
   doubleprecision,parameter :: eV2au       = 0.03674932587122423  ! V(au)  = V(eV)*eV2au
-  doubleprecision,parameter :: nm2au       = 1.0/0.0529           ! d(au)  = d(nm)*nm2au
+  doubleprecision,parameter :: nm2au       = 1.0 / 0.0529           ! d(au)  = d(nm)*nm2au
   doubleprecision,parameter :: cm2au       = 1e-2 * 1e9 * nm2au
   doubleprecision,parameter :: inv_cmsq2au = 1. / cm2au / cm2au
-  doubleprecision,parameter :: one_over_sqrt_3 = 1.0D0/sqrt(3.0)
+  doubleprecision,parameter :: one_over_sqrt_3 = 1.0D0 / sqrt(3.0)
 
   logical :: run_transport = .true.
   logical :: run_energyScan = .true.
@@ -647,3 +647,5 @@ end program main
 ! Zapytać jeszcze o
 ! potencjał/relaksacja - najpierw gładkie przejście może wystarczy
 ! r
+
+! Dlaczego na wykresach V jest skok względem B?

@@ -87,6 +87,7 @@ def parseArgs(args: dict) -> None:
                 argType = type(args[argName])
             else:
                 argType = float
+                print(f"{argName} not in arguments")
 
             argValue = argType(argValue)
             args[argName] = argValue

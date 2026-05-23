@@ -13,25 +13,16 @@ if (len(sys.argv) > 1):
 else:
     dir = "./results/"
 
-file = dir + "T.dat"
-
-data = np.loadtxt(file)
-no_lines = np.size(data[0,:])
-x = data[:,0]
-
-ax = plt.subplot(122)
-ax.plot(data[:,1], x, c='k', ls='-')
-
-plt.savefig(dir + "bands.png")
-
 file = dir + "bands.dat"
 
 # data = np.loadtxt(file)
-data = np.loadtxt(file, usecols=[0,1,2])
+data = np.loadtxt(file)
+print(data)
 no_lines = np.size(data[0,:]) - 1
+print(no_lines)
 x = data[:,0]
 
-ax = plt.subplot(121, sharey=ax)
+fig, ax = plt.subplots()
 for i in range(no_lines):
     ax.plot(x, data[:,i+1],ls='-')
 

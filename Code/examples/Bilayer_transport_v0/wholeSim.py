@@ -32,21 +32,22 @@ plt.rcParams.update({"xtick.labelsize": 14,
 
 # np co 0.2 V
 args = {
-    "BMin": 1., "BMax": 8.,   # min and max induction in T
-    "VbMin": 1., "VbMax": 10., # min and max bottom gate voltages in V
-    "VtMin": 0., "VtMax": 0., # min and max top gate voltages in V
-    "maxParallel": 2, # maximum number of parralel simulations
-    "numB": 5, "numVb": 5, "numVt":1, # number of B/Vt/Vb values to run
-    "clearDir": 0, # if 1 then moves "allResultsDir" to "allResultsDir"Old
-    "plotAll": 0, # if 1 then plots results after simulation
-    "runSim": 0, # if 1 then runs simulation
-    "allResultsDir": "./results/", # directory to store all results
-    "saveStdout": 0, # if 1 then saves outputs from simulations to file else >dev/null
-    "saveSystem": 0, # if 1 then saves created system to file
-    "processFiles": 0, # if 1 then forces processing files even when previously processed
-    "show": 0, # if 1 then shows plots at the end of plotting
-    "runTransport": 1, # if 1 then runTransport = 1
-    "sf": 8, # scaling factor
+    "BMin"         : 1.,           "BMax" : 8.,                # min and max induction in T
+    "VbMin"        : 1.,           "VbMax": 10.,               # min and max bottom gate voltages in V
+    "VtMin"        : 0.,           "VtMax": 0.,                # min and max top gate voltages in V
+    "maxParallel"  : 2,                                        # maximum number of parralel simulations
+    "numB"         : 5,            "numVb": 5,   "numVt": 1,   # number of B/Vt/Vb values to run
+    "dB"           : -1.,          "dVb"  : -1.,               # delta used instead of num, default is negative so it is not used
+    "clearDir"     : 0,                                        # if 1 then moves "allResultsDir" to "allResultsDir"Old
+    "plotAll"      : 0,                                        # if 1 then plots results after simulation
+    "runSim"       : 0,                                        # if 1 then runs simulation
+    "allResultsDir": "./results/",                             # directory to store all results
+    "saveStdout"   : 0,                                        # if 1 then saves outputs from simulations to file else >dev/null
+    "saveSystem"   : 0,                                        # if 1 then saves created system to file
+    "processFiles" : 0,                                        # if 1 then forces processing files even when previously processed
+    "show"         : 0,                                        # if 1 then shows plots at the end of plotting
+    "runTransport" : 1,                                        # if 1 then runTransport = 1
+    "sf"           : 8,                                        # scaling factor
     }
 
 def createTab(min, max, num = 3) -> np.ndarray:
@@ -72,8 +73,18 @@ def prepareCommandsAndDirs()-> list[str]:
     saveBands = 0
     sf = args["sf"]
 
-    BTab = createTab(args["BMin"], args["BMax"], args["numB"])
-    VbTab = createTab(args["VbMin"], args["VbMax"], args["numVb"])
+    if (args["dB"] <= 0):
+        BTab = createTab(args["BMin"], args["BMax"], args["numB"])
+    else:
+        BTab = createTab(args["BMin"], args["BMax"],
+                         int((args["BMax"] - args["BMin"]) / args["dB"] + 1))
+
+    if (args["dVb"] <= 0):
+        VbTab = createTab(args["VbMin"], args["VbMax"], args["numVb"])
+    else:
+        VbTab = createTab(args["VbMin"], args["VbMax"],
+                          int((args["VbMax"] - args["VbMin"]) / args["dVb"] + 1))
+
     VtTab = createTab(args["VtMin"], args["VtMax"], args["numVt"])
     print(f"B = {BTab}")
     print(f"Vb = {VbTab}")
@@ -88,12 +99,13 @@ def prepareCommandsAndDirs()-> list[str]:
 
         if os.path.exists(newDir):
             execCommand(f"rm -r {newDir}")
-        execCommand(f"mkdir {newDir}")
+        execCommand(f"mkdir -p {newDir}")
         if os.path.exists(allResultsDir):
             execCommand(f"mv {allResultsDir}* {newDir}")
+            execCommand(f"mv {newDir} ./results/Old/")
             execCommand(f"rm -r {allResultsDir}")
-        execCommand(f"mkdir {allResultsDir}")
-        execCommand(f"mkdir {allResultsDir}dirs/")
+        execCommand(f"mkdir --p {allResultsDir}")
+        execCommand(f"mkdir --p {allResultsDir}dirs/")
 
     # command to save system
     command = f"./Transport2D {allResultsDir} {np.max(BTab)} -60 0 1 0 0 0 0 0 {sf}"
@@ -192,66 +204,86 @@ def plotIm(fig, ax, x, Vb_unique, B_unique, Vt, cbar_label):
                    aspect=(Vb_unique[-1] - Vb_unique[0]) / (B_unique[-1] - B_unique[0]),
                 #    origin="lower", interpolation="bilinear", cmap="viridis")
                    origin="lower", interpolation="nearest", cmap="viridis")
-    cbar = fig.colorbar(im)
+
     ax.set_title(f"Vt = {Vt} V")
     ax.set_xlabel("Vb [V]")
     ax.set_ylabel("B [T]")
+
+    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cbar.set_label(cbar_label)
 
+def differenciate(image, x, y = None):
+    if y is None:
+        xAxis = 1
+        dX = np.diff(x)
+        dImage = np.diff(image, 1, axis = xAxis)
+        dImagedX = dImage/dX
+        return dImagedX
+    else:
+        yAxis = 0
+        dY = np.diff(y)
+        dImage = np.diff(image, 1, axis = yAxis)
+        dImagedY = dImage/dY
+        return dImagedY
 
 def plotVgtVgb(Vgt: np.ndarray,
                Vgb: np.ndarray,
                Vb_unique: np.ndarray,
                B_unique: np.ndarray,
                Vt: float) -> None:
-    fig, ax = plt.subplots(2, 1,figsize=(6, 8))
+    fig, ax = plt.subplots(2, 2, figsize=(18, 16))
 
-    plotIm(fig, ax[0], Vgt, Vb_unique, B_unique, Vt, "Vgt [V]")
-    plotIm(fig, ax[1], Vgb, Vb_unique, B_unique, Vt, "Vgb [V]")
+    plotIm(fig, ax[0,0], Vgt, Vb_unique, B_unique, Vt, "Vgt [V]")
+    dVgtdVb = differenciate(Vgt, Vb_unique)
+    plotIm(fig, ax[0,1], dVgtdVb, Vb_unique, B_unique, Vt, r"\frac{dVgt}{dVb} [V]")
+
+    plotIm(fig, ax[1,0], Vgb, Vb_unique, B_unique, Vt, "Vgb [V]")
+    dVgbdVb = differenciate(Vgb, Vb_unique)
+    plotIm(fig, ax[1,1], dVgtdVb, Vb_unique, B_unique, Vt, r"\frac{dVgb}{dVb} [V]")
 
     fig.tight_layout()
     fig.savefig(f"{args["allResultsDir"]}VgtVgb.pdf")
+
+def plotCrossSection(ax, image, Vb_unique, B_unique, Vt, y_label, frac = 0.5):
+    Ycoord = int(image.shape[0] * frac)
+    image_middle = image[Ycoord]
+
+    # Get colors from the same normalization as the 2D plot
+    norm = Normalize(vmin=image.min(), vmax=image.max())
+    cmap = plt.get_cmap("viridis")
+
+    # Create line segments for LineCollection
+    points = np.array([Vb_unique, image_middle]).T.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+    # Plot with LineCollection
+    lc = LineCollection(segments, cmap=cmap, norm=norm)
+    lc.set_array(image_middle)
+    lc.set_linewidth(2)
+    ax.add_collection(lc)
+    ax.autoscale()
+
+    ax.set_title(f"B = {round(B_unique[Ycoord], 2)} [T], Vt={Vt} [V]")
+    ax.set_xlabel("Vb [V]")
+    ax.grid()
+    ax.set_ylabel(y_label)
+
 
 def plotConductance(T_2D: np.ndarray,
                     Vb_unique: np.ndarray,
                     B_unique: np.ndarray,
                     Vt: float) -> None:
     G = T2Gau(T_2D)
-    fig, ax = plt.subplots(2, 1,figsize=(10, 8), height_ratios=[2.5,1])
+    fig, ax = plt.subplots(2, 2, figsize=(16, 11), height_ratios=[3.5,1])
 
-    plotIm(fig, ax[0], G, Vb_unique, B_unique, Vt, r"G [$\frac{e^2}{h}$]")
-    # im = ax[0].imshow(G, extent=(Vb_unique[0], Vb_unique[-1], B_unique[0], B_unique[-1]),
-    #                   aspect='auto', origin="lower", interpolation="nearest", cmap="viridis")
-    #             #    aspect='auto', origin="lower", interpolation="bilinear", cmap="viridis")
-    # cbar = fig.colorbar(im)
+    plotIm(fig, ax[0,0], G, Vb_unique, B_unique, Vt, r"$G$ [$\frac{e^2}{h}$]")
 
-    # ax[0].set_title(f"Vt={Vt} [V]")
+    plotCrossSection(ax[1,0], G, Vb_unique, B_unique, Vt, r"$G$ [$\frac{e^2}{h}$]")
 
-    # ax[0].set_ylabel("B [T]")
-    # ax[0].set_xlabel("Vb [V]")
-    # cbar.set_label(r"G [$\frac{e^2}{h}$]")
+    dGdVb = differenciate(G, Vb_unique)
+    plotIm(fig, ax[0,1], dGdVb, Vb_unique, B_unique, Vt, r"$\frac{dG}{dVb}$")
 
-    G_middle = G[G.shape[0]//2]
-
-    # Get colors from the same normalization as the 2D plot
-    norm = Normalize(vmin=G.min(), vmax=G.max())
-    cmap = plt.get_cmap("viridis")
-
-    # Create line segments for LineCollection
-    points = np.array([Vb_unique, G_middle]).T.reshape(-1, 1, 2)
-    segments = np.concatenate([points[:-1], points[1:]], axis=1)
-
-    # Plot with LineCollection
-    lc = LineCollection(segments, cmap=cmap, norm=norm)
-    lc.set_array(G_middle)
-    lc.set_linewidth(2)
-    ax[1].add_collection(lc)
-    ax[1].autoscale()
-
-    ax[1].set_title(f"B = {round(B_unique[G.shape[0]//2], 2)} [T], Vt={Vt} [V]")
-    ax[1].set_xlabel("Vb [V]")
-    ax[1].grid()
-    ax[1].set_ylabel(r"G [$\frac{e^2}{h}$]")
+    plotCrossSection(ax[1,1], dGdVb, Vb_unique[:-1], B_unique, Vt, r"$\frac{dG}{dVb}$")
 
     fig.tight_layout()
     fig.savefig(f"{args["allResultsDir"]}Conductance.pdf")
@@ -266,7 +298,7 @@ def plotdGdV(T_2D: np.ndarray,
              Vb_unique: np.ndarray,
              B_unique: np.ndarray,
              Vt: float) -> None:
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, ax = plt.subplots(figsize=(14, 9))
 
     dV = np.diff(Vb_unique)
     BAxis = 0
@@ -274,16 +306,11 @@ def plotdGdV(T_2D: np.ndarray,
     dG = np.diff(T2Gau(T_2D), 1, axis = VAxis)
     dGdV = dG/dV
 
-    im = ax.imshow(dGdV, extent=(Vb_unique[0], Vb_unique[-1], B_unique[0], B_unique[-1]),
-                   aspect='auto', origin="lower", interpolation="nearest", cmap='nipy_spectral')
-                    #  aspect='auto', origin="lower", interpolation="bilinear", cmap='nipy_spectral')
+    plotIm(fig, ax, dGdV, Vb_unique, B_unique, Vt, r"$\frac{dG}{dV}$")
 
-    cbar = fig.colorbar(im)
     ax.set_title(f"Vt={Vt}")
-
-    ax.set_ylabel("B [G]")
+    ax.set_ylabel("B [T]")
     ax.set_xlabel("Vb [V]")
-    cbar.set_label(r"$\frac{dG}{dV}$")
 
     fig.tight_layout()
     fig.savefig(f"{args["allResultsDir"]}dGdV.pdf")
