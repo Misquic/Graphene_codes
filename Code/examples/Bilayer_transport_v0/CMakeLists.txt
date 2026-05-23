@@ -10,7 +10,7 @@ target_link_libraries(Bilayer_transport_v0 PRIVATE GrapheneLib
   superlu)
 # all needed libraries (for bubel)
 target_link_options(Bilayer_transport_v0 PUBLIC -qmkl)
-target_include_directories(Bilayer_transport_v0 PUBLIC /usr/local/include/bubel/)
+target_include_directories(Bilayer_transport_v0 PUBLIC /usr/local/lib/Bubel/)
 target_link_directories(Bilayer_transport_v0 PUBLIC /usr/local/lib /opt/intel/mkl/oneapi/mkl/latest/lib)
 
 

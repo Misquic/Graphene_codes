@@ -27,15 +27,15 @@ program main
   doubleprecision :: middle_x             !
   character(len=512) :: results_dir = "./results" ! Directory for output files
 
-  doubleprecision :: Bz = 8 ! B = (0, 0, Bz) !T
-  doubleprecision :: Bau ! in au
-  doubleprecision :: Vt = 5, Vb = 5 ! eV ! TODO 0 values doesn't work
+  doubleprecision :: Bz = 8                     ! B = (0, 0, Bz) !T
+  doubleprecision :: Bau                        ! in au
+  doubleprecision :: Vt = 0, Vb = 5             ! eV
   doubleprecision :: Vgt, Vgb, E0t, E0b, nt, nb ! result from Bilayer
-  doubleprecision :: Ef                 ! Fermi energy for calculations
+  doubleprecision :: Ef                         ! Fermi energy for calculations
+  integer         :: sf = 8                     ! scaling factor
+  integer         :: nx = 9                     ! numbers of atoms / 2 in x direction ! results in about 340 nm
+  integer         :: ny = 14                    ! ~numbers of atoms / 2 in y direction (keep even) ! results in about 450 nm
 
-  integer        ,parameter :: sf          = 8       ! scaling factor
-  integer        ,parameter :: nx          = 24 * (8 / sf)        ! numbers of atoms / 2 in x direction
-  integer        ,parameter :: ny          = 48 * (8 / sf) + 1    ! ~numbers of atoms / 2 in y direction (keep odd)
   doubleprecision,parameter :: T2au        = 4.254382E-6          ! B(au) = B(T)*T2au
   doubleprecision,parameter :: eV2au       = 0.03674932587122423  ! V(au)  = V(eV)*eV2au
   doubleprecision,parameter :: nm2au       = 1.0/0.0529           ! d(au)  = d(nm)*nm2au
@@ -54,6 +54,8 @@ program main
 
 !!!!!!!!!!!!!!!!!!!!!!!! main function !!!!!!!!!!!!!!!!!!!!!!!
   call parseArguments()
+  nx = nx * (8 / sf)
+  ny = ny * (8 / sf) + 1
 
   call createSystem()
   if (save_system) then
@@ -142,6 +144,25 @@ contains
 
 
 ! --------------------------------------------------------------------------------------------------
+! Parse integer from next command line argument
+! --------------------------------------------------------------------------------------------------
+  integer function parseIntArg(defaultValue)
+    implicit none
+    integer :: defaultValue
+    character(len=512) :: arg_buffer
+
+! --------------------------------------------------------------------------------------------------
+    if (getNextArgument(arg_buffer)) then
+      read(arg_buffer, *) parseIntArg
+    else
+      parseIntArg = defaultValue
+    endif
+  end function parseIntArg
+! --------------------------------------------------------------------------------------------------
+
+
+
+! --------------------------------------------------------------------------------------------------
 ! Parse Double Precision from next command line argument
 ! --------------------------------------------------------------------------------------------------
   doubleprecision function parseDoubleArg(defaultValue)
@@ -175,7 +196,7 @@ contains
       if (help_buffer == "help") then
         print*, "usage: ./Transport2D <resultsDir> <B in T> <Vb> <Vt> &
                  <save_system> <run_transport> <run_energyScan> &
-                 <plot_results> <save_densities> <save_bands>"
+                 <plot_results> <save_densities> <save_bands> <sf>"
         call exit(0)
       else
         results_dir = trim(arg_buffer)
@@ -191,12 +212,11 @@ contains
     plot_results = parseBoolArg(.false.)
     save_densities = parseBoolArg(.false.)
     save_bands = parseBoolArg(.false.)
-
-    if (plot_results) save_bands = .true.
+    sf = parseIntArg(sf)
 
     print*, "usage: ./Transport2D <resultsDir> <B in T> <Vb> <Vt> &
              <save_system> <run_transport> <run_energyScan> &
-             <plot_results> <save_densities> <save_bands>"
+             <plot_results> <save_densities> <save_bands> <sf>"
     print*, ""
     print*, "Parsed Arguments"
     print*, ""
@@ -210,6 +230,7 @@ contains
     print*, "plot_results: ", plot_results
     print*, "save_densities: ", save_densities
     print*, "save_bands: ", save_bands
+    print*, "sf: ", sf
     print*, ""
     print*, ""
     print*, ""
@@ -233,33 +254,42 @@ contains
     type(qatom) :: qa
     ! graphene parameters
     doubleprecision,parameter :: alpha30                = 30.0/180.0*M_PI
-    doubleprecision,parameter :: vecs_armchair(2,2)     = (/  (/ 1.0D0,0.0D0 /) , (/ sin(alpha30) , cos(alpha30) /) /) * sf
-    doubleprecision,parameter :: atoms_armchair(2,2)    = (/  (/ 0.0D0,0.0D0 /) , (/ 0.0D0 , one_over_sqrt_3 /) /) * sf
-    doubleprecision,parameter :: pos_offset_armchair(2) = (/ -sin(alpha30), -cos(alpha30) /) * sf
-    integer        ,parameter :: atomA                  = 1, atomB = 2 ! sublattices flags
+    doubleprecision           :: vecs_armchair(2,2)     = (/  (/ 1.0D0,0.0D0 /) , (/ sin(alpha30) , cos(alpha30) /) /)
+    doubleprecision           :: atoms_armchair(2,2)    = (/  (/ 0.0D0,0.0D0 /) , (/ 0.0D0 , one_over_sqrt_3 /) /)
+    doubleprecision           :: pos_offset_armchair(2) = (/ -sin(alpha30), -cos(alpha30) /)
+    integer,parameter         :: atomA = 1, atomB = 2 ! sublattices flags
+    doubleprecision,parameter :: carbon_carbon_dist = 0.142 ! nm
+    doubleprecision,parameter :: geometric_unit = carbon_carbon_dist * sqrt(3.0)
+    doubleprecision,parameter :: geometric_unit2au = geometric_unit * nm2au
 
     ! local variables
-    integer           :: i, j, atom           ! loop variables
-    doubleprecision   :: atom_pos(3)
-    doubleprecision   :: pos_max(2) = (/ 0.0D0, 0.0D0/)
-    doubleprecision   :: pos_min(2) = pos_offset_armchair * 0.5 + 0.001 ! 0.001 is to ommit numerical errors
-    doubleprecision   :: x_min = atoms_armchair(0,0), x_max = atoms_armchair(0,0)
-    doubleprecision   :: y_min = atoms_armchair(0,1), y_max = atoms_armchair(0,1)
+    integer         :: i, j, atom           ! loop variables
+    doubleprecision :: atom_pos(3)
+    doubleprecision :: pos_max(2) = (/ 0.0D0, 0.0D0/)
+    doubleprecision :: pos_min(2) = (/ 0.0D0, 0.0D0/)
+    doubleprecision :: x_min      = 0.0D0, x_max = 0.0D0
+    doubleprecision :: y_min      = 0.0D0, y_max = 0.0D0
     type(c_ptr)       :: bilayer
 
 ! --------------------------------------------------------------------------------------------------
-    call qt%init_system()
-    QSYS_DEBUG_LEVEL = 0
-    QSYS_FORCE_SCHUR_DECOMPOSITION  = .true. ! use schur method to calculate modes which is more stable
-    ! QSYS_SCATTERING_METHOD = QSYS_SCATTERING_QTBM
+    vecs_armchair = vecs_armchair * sf
+    atoms_armchair = atoms_armchair * sf
+    pos_offset_armchair = pos_offset_armchair * sf
 
     ! some magic to have nice edges
     pos_max = atoms_armchair(:, 2) + nx * vecs_armchair(:,1) + ny * vecs_armchair(:,2) - 0.001 ! 0.001 is to ommit numerical errors
     pos_max(1) = pos_max(1) - 2 * (ny / 2) * vecs_armchair(1,2)
     pos_max(2) = pos_max(2) + 2 * pos_offset_armchair(2)
+    pos_min = pos_offset_armchair * 0.5 + 0.001 ! 0.001 is to ommit numerical errors
+    x_min = atoms_armchair(1,1)
+    x_max = atoms_armchair(1,1)
+    y_min = atoms_armchair(1,2)
+    y_max = atoms_armchair(1,2)
 
-    print*, "x_min", x_min, " x_max", x_max
-    print*, "y_min", y_min, " y_max", y_max
+    call qt%init_system()
+    QSYS_DEBUG_LEVEL = 0
+    QSYS_FORCE_SCHUR_DECOMPOSITION  = .true. ! use schur method to calculate modes which is more stable
+    ! QSYS_SCATTERING_METHOD = QSYS_SCATTERING_QTBM
 
     ! Generate atoms positions
     do i = 0, nx
@@ -295,9 +325,12 @@ contains
     middle_x = 0.5 * (x_min + x_max)
     middle_y = 0.5 * (y_min + y_max)
 
-    print*, "middle_x", middle_x, " middle_y", middle_y
-    print*, "x_min", x_min, " x_max", x_max
-    print*, "y_min", y_min, " y_max", y_max
+    print*, "middle_x", middle_x * geometric_unit2au, " nm"
+    print*, "middle_y", middle_y * geometric_unit2au, " nm"
+    print*, "x_min", x_min * geometric_unit2au, " nm"
+    print*, "x_max", x_max * geometric_unit2au, " nm"
+    print*, "y_min", y_min * geometric_unit2au, " nm"
+    print*, "y_max", y_max * geometric_unit2au, " nm"
 
     ! Coupling between atoms, onsite energies
     qt%qnnbparam%distance = 0.6 * sf
@@ -442,13 +475,15 @@ contains
     doubleprecision :: xA, yA, xB, yB
     doubleprecision :: phi ! Peirles phase
     doubleprecision :: B
-    doubleprecision,parameter:: t0 = 3.0D0 * eV2au / sf! onsite
-    doubleprecision,parameter:: carbon_carbon_dist = 0.142 ! nm
-    doubleprecision,parameter:: geometric_unit = carbon_carbon_dist * sqrt(3.0)
-    doubleprecision,parameter:: geometric_unit2au = geometric_unit * nm2au
-    doubleprecision,parameter:: gu2au_squared = geometric_unit2au*geometric_unit2au
+    doubleprecision :: t0
+
+    doubleprecision,parameter :: carbon_carbon_dist = 0.142 ! nm
+    doubleprecision,parameter :: geometric_unit = carbon_carbon_dist * sqrt(3.0)
+    doubleprecision,parameter :: geometric_unit2au = geometric_unit * nm2au
+    doubleprecision,parameter :: gu2au_squared = geometric_unit2au*geometric_unit2au
 
 ! --------------------------------------------------------------------------------------------------
+    t0 = (3.0D0 * eV2au) / sf
     connect = .not. (atomA%flag == atomB%flag)
     if (connect) then
       xA = atomA%atom_pos(1)
@@ -459,7 +494,7 @@ contains
       if ((yB + yA) * 0.5 < middle_y) B = -Bau ! bottom
 
       ! Peierls phase
-      phi = B * (yB + yA) * (xB - xA) * gu2au_squared
+      phi = 0.5 * B * (yB + yA) * (xB - xA) * gu2au_squared
       coupling_val = t0 * exp(II*phi)
 
       if ((yB + yA) * 0.5 < middle_y) then ! bottom
@@ -586,8 +621,10 @@ contains
     implicit none
 
 ! --------------------------------------------------------------------------------------------------
-    print*,"  Plotting band structure..."
-    call execute_command_line("python plot_bands.py "//trim(results_dir)//"/")
+    if (save_bands) then
+      print*,"  Plotting band structure..."
+      call execute_command_line("python plot_bands.py "//trim(results_dir)//"/")
+    endif
     print*,"  Plotting Transmission..."
     call execute_command_line("python plot_T.py "//trim(results_dir)//"/")
   end subroutine generatePlots

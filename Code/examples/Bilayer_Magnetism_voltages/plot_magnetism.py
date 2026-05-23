@@ -76,7 +76,8 @@ def assert_mess(cond: bool, mess:str = "") -> None:
 def plotIm(data, B, Vb, title, nameSave):
     fig, ax = plt.subplots()
 
-    im = ax.imshow(data, origin="lower", extent=(Vb[0], Vb[-1], B[0], B[-1]))
+    im = ax.imshow(data, origin="lower", extent=(Vb[0], Vb[-1], B[0], B[-1]),
+                   aspect = (Vb[-1] - Vb[0])/(B[-1] -B[0]))
     ax.set_xlabel("Vb [V]")
     ax.set_ylabel("B [T]")
     ax.set_title(title)

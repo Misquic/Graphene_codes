@@ -43,6 +43,10 @@ args = {
     "allResultsDir": "./results/", # directory to store all results
     "saveStdout": 0, # if 1 then saves outputs from simulations to file else >dev/null
     "saveSystem": 0, # if 1 then saves created system to file
+    "processFiles": 0, # if 1 then forces processing files even when previously processed
+    "show": 0, # if 1 then shows plots at the end of plotting
+    "runTransport": 1, # if 1 then runTransport = 1
+    "sf": 8, # scaling factor
     }
 
 def createTab(min, max, num = 3) -> np.ndarray:
@@ -61,11 +65,12 @@ def execCommand(command: str) -> int:
 
 def prepareCommandsAndDirs()-> list[str]:
     saveSystem = args["saveSystem"]
-    runTransport = 1
+    runTransport = 1 if args["runTransport"] == 1 else 0
     runEnergyScan = 0
     plotResults = 0
     saveDensities = 0
     saveBands = 0
+    sf = args["sf"]
 
     BTab = createTab(args["BMin"], args["BMax"], args["numB"])
     VbTab = createTab(args["VbMin"], args["VbMax"], args["numVb"])
@@ -90,6 +95,10 @@ def prepareCommandsAndDirs()-> list[str]:
         execCommand(f"mkdir {allResultsDir}")
         execCommand(f"mkdir {allResultsDir}dirs/")
 
+    # command to save system
+    command = f"./Transport2D {allResultsDir} {np.max(BTab)} -60 0 1 0 0 0 0 0 {sf}"
+    commands.append(command)
+
     # Vt is outside because it is likely to be single value
     for Vt in VtTab:
         for B in BTab:
@@ -107,7 +116,7 @@ def prepareCommandsAndDirs()-> list[str]:
                 commandArgs = [ resultsDir,
                                 str(B), str(Vb), str(Vt),
                                 str(saveSystem), str(runTransport), str(runEnergyScan),
-                                str(plotResults), str(saveDensities), str(saveBands)]
+                                str(plotResults), str(saveDensities), str(saveBands), str(sf)]
 
                 command = "./Transport2D "
                 for a in commandArgs:
@@ -180,7 +189,9 @@ def getParamsFromDir(dir: str) -> tuple[float, float, float]:
 
 def plotIm(fig, ax, x, Vb_unique, B_unique, Vt, cbar_label):
     im = ax.imshow(x, extent=(Vb_unique[0], Vb_unique[-1], B_unique[0], B_unique[-1]),
-                   aspect='auto', origin="lower", interpolation="nearest", cmap="viridis")
+                   aspect=(Vb_unique[-1] - Vb_unique[0]) / (B_unique[-1] - B_unique[0]),
+                #    origin="lower", interpolation="bilinear", cmap="viridis")
+                   origin="lower", interpolation="nearest", cmap="viridis")
     cbar = fig.colorbar(im)
     ax.set_title(f"Vt = {Vt} V")
     ax.set_xlabel("Vb [V]")
@@ -309,10 +320,10 @@ def processFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, 
             continue
 
         if (idx % 10 == 0) or (idx+1 == l):
-            progressBar(idx+1, 0, l, timeStart)
+            progressBar(idx+1, 1, l, timeStart)
 
         data = read_csv(os.path.join(dir, "single_T.dat"), ',', header = [0])
-        T = data[1]
+        T   = data[1]
         Vgt = data[4]
         Vgb = data[5]
 
@@ -361,12 +372,13 @@ def readFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.
 
 def plotAll(plotForVt) -> None:
 
-    if os.path.exists(args["allResultsDir"] + "T.csv") and \
-       os.path.exists(args["allResultsDir"] + "Vgt.csv") and \
-       os.path.exists(args["allResultsDir"] + "Vgb.csv"):
-        T_2D, Vgt, Vgb, Vb_unique, B_unique = readFiles(plotForVt)
-    else:
+    if (not os.path.exists(args["allResultsDir"] + "T.csv") or \
+        not os.path.exists(args["allResultsDir"] + "Vgt.csv") or \
+        not os.path.exists(args["allResultsDir"] + "Vgb.csv") or
+        args["processFiles"]):
         T_2D, Vgt, Vgb, Vb_unique, B_unique = processFiles(plotForVt)
+    else:
+        T_2D, Vgt, Vgb, Vb_unique, B_unique = readFiles(plotForVt)
 
     if len(T_2D) == 0: return
 
@@ -395,5 +407,7 @@ if __name__ == "__main__":
         VtTab = createTab(args["VtMin"], args["VtMax"], args["numVt"])
         for Vt in VtTab:
             plotAll(Vt)
+        if (args["show"] == 1):
+            plt.show()
 
 #TODO run simulations, create plotting script, parallelize

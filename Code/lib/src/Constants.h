@@ -46,22 +46,23 @@ public:
   inline static double v                     = hbar_v / hbar;
 
   // parameters constants only for now it will change
-  // inline static constexpr double Lorentzian_par     = 0.4e-3 * eV2au;       // witdh in approx for delta function
-  inline static constexpr double Lorentzian_par     = 0.4e-1 * eV2au;       // witdh in approx for delta function
+  inline static constexpr double Lorentzian_par     = 1e-3 * eV2au;         // witdh in approx for delta function
   inline static constexpr double inv_Lorentzian_par = 1. / Lorentzian_par;
-  inline static constexpr double VgAbsTol           = 1e-6 * V2au;               // Tolerance of absolute error for Vg
-  inline static constexpr double VgRelTol           = 1e-6;               // Tolerance of relative error for Vg
-  inline static constexpr double smallNumber        = 1e-14 * V2au;              // Don't devide by zero
-  inline static constexpr double VgAlpha            = .3;                // relaxation, 1 -> only new Value 0 -> only previous value;
-  inline static constexpr uint8_t maxIterationsB    = 30 / VgAlpha;                 // max iterations of Bilayer::iterationB
+  inline static constexpr double VgAbsTol           = 1e-6 * V2au;          // Tolerance of absolute error for Vg
+  inline static constexpr double VgRelTol           = 1e-6;                 // Tolerance of relative error for Vg
+  inline static constexpr double smallNumber        = 1e-14 * V2au;         // Don't devide by zero
+  inline static constexpr double VgAlpha            = .3;                   // relaxation, 1 -> only new Value 0 -> only previous value;
+  inline static constexpr uint8_t maxIterationsB    = 30 / VgAlpha;         // max iterations of Bilayer::iterationB
 
   //default values fo Bilayer
   inline static constexpr double nit_default = 8.12/2 * 1e11 * inv_cmsq2au;
   inline static constexpr double nib_default = 8.12/2 * 1e11 * inv_cmsq2au;
-  inline static constexpr double dt_default  = 330.0 * nm2au; // SiO2
+  // inline static constexpr double dt_default  = 330.0 * nm2au; // SiO2
+  inline static constexpr double dt_default  = 40.0 * nm2au;
   inline static constexpr double dg_default  = 0.5 * nm2au;
   inline static constexpr double db_default  = 40.0 * nm2au; // hBN
-  inline static constexpr double et_default  = 3.9; // SiO2
+  // inline static constexpr double et_default  = 3.9; // SiO2
+  inline static constexpr double et_default  = 3.7;
   inline static constexpr double eg_default  = 1.0;
   inline static constexpr double eb_default  = 3.7; // hBN
   inline static constexpr double Ct_default  = eps_0 * et_default / dt_default;

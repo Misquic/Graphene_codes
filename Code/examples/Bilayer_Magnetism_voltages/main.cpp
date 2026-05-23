@@ -17,12 +17,12 @@ int main(int argc, char* argv[]){
   Bilayer bilayer;
 
   const double BMin = 1.f;
-  const double BMax = 10.f;
-  const std::vector<double> BTab = linspace<double>(BMin, BMax, .25f);
+  const double BMax = 8.f;
+  const std::vector<double> BTab = linspace<double>(BMin, BMax, .05f);
 
-  const double VbMin = 0.f;
-  const double VbMax = 10.f;
-  const std::vector<double> VbTab = linspace<double>(VbMin, VbMax, .25f);
+  const double VbMin = -60.f;
+  const double VbMax = 30.f;
+  const std::vector<double> VbTab = linspace<double>(VbMin, VbMax, .5f);
 
   save(BTab, "./Vt_" + str(Vt) + "/B.csv");
   save(VbTab, "./Vt_" + str(Vt) + "/Vb.csv");
