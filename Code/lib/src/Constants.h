@@ -57,12 +57,10 @@ public:
   //default values fo Bilayer
   inline static constexpr double nit_default = 8.12/2 * 1e11 * inv_cmsq2au;
   inline static constexpr double nib_default = 8.12/2 * 1e11 * inv_cmsq2au;
-  // inline static constexpr double dt_default  = 330.0 * nm2au; // SiO2
-  inline static constexpr double dt_default  = 40.0 * nm2au;
+  inline static constexpr double dt_default  = 330.0 * nm2au; // SiO2
   inline static constexpr double dg_default  = 0.5 * nm2au;
   inline static constexpr double db_default  = 40.0 * nm2au; // hBN
-  // inline static constexpr double et_default  = 3.9; // SiO2
-  inline static constexpr double et_default  = 3.7;
+  inline static constexpr double et_default  = 3.9; // SiO2
   inline static constexpr double eg_default  = 1.0;
   inline static constexpr double eb_default  = 3.7; // hBN
   inline static constexpr double Ct_default  = eps_0 * et_default / dt_default;

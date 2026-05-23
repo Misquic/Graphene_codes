@@ -33,8 +33,10 @@ program main
   doubleprecision :: Vgt, Vgb, E0t, E0b, nt, nb ! result from Bilayer
   doubleprecision :: Ef                         ! Fermi energy for calculations
   integer         :: sf = 8                     ! scaling factor
-  integer         :: nx = 9                     ! numbers of atoms / 2 in x direction ! results in about 340 nm
-  integer         :: ny = 14                    ! ~numbers of atoms / 2 in y direction (keep even) ! results in about 450 nm
+  integer         :: nx = 50                    ! numbers of atoms / 2 in x direction
+                                                ! results in about 196 nm
+  integer         :: ny = 120                   ! ~numbers of atoms / 2 in y direction (keep even)
+                                                ! results in about 408 nm
 
   doubleprecision,parameter :: T2au        = 4.254382E-6          ! B(au) = B(T)*T2au
   doubleprecision,parameter :: eV2au       = 0.03674932587122423  ! V(au)  = V(eV)*eV2au
@@ -54,8 +56,8 @@ program main
 
 !!!!!!!!!!!!!!!!!!!!!!!! main function !!!!!!!!!!!!!!!!!!!!!!!
   call parseArguments()
-  nx = nx * (8 / sf)
-  ny = ny * (8 / sf) + 1
+  nx = nx * (16 / sf)
+  ny = ny * (16 / sf) + 1
 
   call createSystem()
   if (save_system) then
@@ -254,13 +256,14 @@ contains
     type(qatom) :: qa
     ! graphene parameters
     doubleprecision,parameter :: alpha30                = 30.0/180.0*M_PI
-    doubleprecision           :: vecs_armchair(2,2)     = (/  (/ 1.0D0,0.0D0 /) , (/ sin(alpha30) , cos(alpha30) /) /)
-    doubleprecision           :: atoms_armchair(2,2)    = (/  (/ 0.0D0,0.0D0 /) , (/ 0.0D0 , one_over_sqrt_3 /) /)
-    doubleprecision           :: pos_offset_armchair(2) = (/ -sin(alpha30), -cos(alpha30) /)
     integer,parameter         :: atomA = 1, atomB = 2 ! sublattices flags
     doubleprecision,parameter :: carbon_carbon_dist = 0.142 ! nm
     doubleprecision,parameter :: geometric_unit = carbon_carbon_dist * sqrt(3.0)
     doubleprecision,parameter :: geometric_unit2au = geometric_unit * nm2au
+
+    doubleprecision           :: vecs_armchair(2,2)     = (/  (/ 1.0D0,0.0D0 /) , (/ sin(alpha30) , cos(alpha30) /) /)
+    doubleprecision           :: atoms_armchair(2,2)    = (/  (/ 0.0D0,0.0D0 /) , (/ 0.0D0 , one_over_sqrt_3 /) /)
+    doubleprecision           :: pos_offset_armchair(2) = (/ -sin(alpha30), -cos(alpha30) /)
 
     ! local variables
     integer         :: i, j, atom           ! loop variables
@@ -272,9 +275,9 @@ contains
     type(c_ptr)       :: bilayer
 
 ! --------------------------------------------------------------------------------------------------
-    vecs_armchair = vecs_armchair * sf
-    atoms_armchair = atoms_armchair * sf
-    pos_offset_armchair = pos_offset_armchair * sf
+    vecs_armchair = vecs_armchair * sf * geometric_unit2au
+    atoms_armchair = atoms_armchair * sf * geometric_unit2au
+    pos_offset_armchair = pos_offset_armchair * sf * geometric_unit2au
 
     ! some magic to have nice edges
     pos_max = atoms_armchair(:, 2) + nx * vecs_armchair(:,1) + ny * vecs_armchair(:,2) - 0.001 ! 0.001 is to ommit numerical errors
@@ -325,15 +328,15 @@ contains
     middle_x = 0.5 * (x_min + x_max)
     middle_y = 0.5 * (y_min + y_max)
 
-    print*, "middle_x", middle_x * geometric_unit2au, " nm"
-    print*, "middle_y", middle_y * geometric_unit2au, " nm"
-    print*, "x_min", x_min * geometric_unit2au, " nm"
-    print*, "x_max", x_max * geometric_unit2au, " nm"
-    print*, "y_min", y_min * geometric_unit2au, " nm"
-    print*, "y_max", y_max * geometric_unit2au, " nm"
+    print*, "middle_x", middle_x / nm2au, " nm"
+    print*, "middle_y", middle_y / nm2au, " nm"
+    print*, "x_min", x_min / nm2au, " nm"
+    print*, "x_max", x_max / nm2au, " nm"
+    print*, "y_min", y_min / nm2au, " nm"
+    print*, "y_max", y_max / nm2au, " nm"
 
     ! Coupling between atoms, onsite energies
-    qt%qnnbparam%distance = 0.6 * sf
+    qt%qnnbparam%distance = 0.6 * sf * geometric_unit2au
     qt%qnnbparam%NNB_FILTER = QSYS_NNB_FILTER_DISTANCE
 
     Bau = Bz * T2au
@@ -494,7 +497,7 @@ contains
       if ((yB + yA) * 0.5 < middle_y) B = -Bau ! bottom
 
       ! Peierls phase
-      phi = 0.5 * B * (yB + yA) * (xB - xA) * gu2au_squared
+      phi = 0.5 * B * (yB + yA) * (xB - xA) ! y x already in au
       coupling_val = t0 * exp(II*phi)
 
       if ((yB + yA) * 0.5 < middle_y) then ! bottom

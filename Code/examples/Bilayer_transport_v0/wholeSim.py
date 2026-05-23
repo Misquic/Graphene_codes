@@ -102,8 +102,8 @@ def prepareCommandsAndDirs()-> list[str]:
         execCommand(f"mkdir -p {newDir}")
         if os.path.exists(allResultsDir):
             execCommand(f"mv {allResultsDir}* {newDir}")
-            execCommand(f"mv {newDir} ./results/Old/")
             execCommand(f"rm -r {allResultsDir}")
+        execCommand(f"mv {newDir} ./results/Old/")
         execCommand(f"mkdir --p {allResultsDir}")
         execCommand(f"mkdir --p {allResultsDir}dirs/")
 
