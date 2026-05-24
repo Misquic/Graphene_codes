@@ -79,9 +79,6 @@ Bilayer::resultsB Bilayer::countDensitiesAndPotential(
   const double E0t = countE0(B_au, _nit, landauLevelEnergies, sumAtan);
   const double E0b = countE0(B_au, _nib, landauLevelEnergies, sumAtan);
 
-  // ASK jeśli obliczamy tutaj E0 to czy ma sens później obliczać dla innego E0 w fortranie?
-  // Jeśli nie to co zrobić?
-
   bool converged = false;
   uint8_t it = 0;
 

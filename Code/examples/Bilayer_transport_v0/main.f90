@@ -2,14 +2,14 @@
 ! that twisted boundary is not taken into account, there is just flip of magnetic
 ! field. System looks like this (x and y used are for 1 view reference, not physical coordinates)
 !    (unfolded view)            !   (side view left)             (side view right)        (side view front)
-! X   ________________________  !   ____lead1___________        ____lead2___________     ___                   ___
+! Y   ________________________  !   ____lead1___________        ____lead2___________     ___                   ___
 ! ^  |l|  top              |l|  !   |  ___top__gate___ |        |  ___top__gate___ |     |l|  ___top_gate___  |l|
 ! |  |e|  B = (0,0,Bz)     |e|  !   |  _______top_____ |     ^  | _______top_____  |     |e|_______top________|e|
 ! |  |a|___________________|a|  !   | /                | B = |  |                \ |     |a|                  |a|
 ! |  |d|  bottom           |d|  !   | \_____bottom____ |     |  | _____bottom____/ |     |d|_____bottom_______|d|
 ! |  |1|  B = (0,0,-Bz)    |2|  !   |  __bottom_gate__ |        |  __bottom_gate__ |     |1|  _bottom__gate_  |2|
 ! |  |_|___________________|_|  !   |__________________|        |__________________|     |_|                  |_|
-! *--------------> Y            !
+! *--------------> X           !
 !
 ! Coupling between layers is taken into account with Bilayer class, transport is
 ! calculated using Bubel
@@ -35,11 +35,9 @@ program main
   doubleprecision :: Vgt, Vgb, E0t, E0b, nt, nb ! result from Bilayer
   doubleprecision :: Ef                         ! Fermi energy for calculations
   integer         :: sf = 8                     ! scaling factor
-  integer         :: nx = 15                    ! numbers of atoms / 2 in x direction
-  ! integer         :: nx = 50                    ! numbers of atoms / 2 in x direction
+  integer         :: nx = 50                    ! numbers of atoms / 2 in x direction
                                                 ! results in about 196 nm
-  integer         :: ny = 40                   ! ~numbers of atoms / 2 in y direction (keep even)
-  ! integer         :: ny = 120                   ! ~numbers of atoms / 2 in y direction (keep even)
+  integer         :: ny = 120                   ! ~numbers of atoms / 2 in y direction (keep even)
                                                 ! results in about 408 nm
 
   doubleprecision,parameter :: T2au        = 4.254382E-6          ! B(au) = B(T)*T2au
@@ -265,8 +263,8 @@ contains
     doubleprecision,parameter :: geometric_unit = carbon_carbon_dist * sqrt(3.0)
     doubleprecision,parameter :: geometric_unit2au = geometric_unit * nm2au
 
-    doubleprecision           :: vecs_armchair(2,2)     = (/  (/ 1.0D0,0.0D0 /) , (/ sin(alpha30) , cos(alpha30) /) /)
-    doubleprecision           :: atoms_armchair(2,2)    = (/  (/ 0.0D0,0.0D0 /) , (/ 0.0D0 , one_over_sqrt_3 /) /)
+    doubleprecision           :: vecs_armchair(2,2)     = (/ (/ 1.0D0,0.0D0 /), (/ sin(alpha30), cos(alpha30) /) /)
+    doubleprecision           :: atoms_armchair(2,2)    = (/ (/ 0.0D0,0.0D0 /), (/ 0.0D0, one_over_sqrt_3 /) /)
     doubleprecision           :: pos_offset_armchair(2) = (/ -sin(alpha30), -cos(alpha30) /)
 
     ! local variables
@@ -477,21 +475,23 @@ contains
 ! Calculate linear gradiend between upper and down side
 ! --------------------------------------------------------------------------------------------------
 
-  doubleprecision function linearVg(y)
+  doubleprecision function linear(y, bottomValue, topValue)
     implicit none
 
     doubleprecision, intent(in) :: y
+    doubleprecision, intent(in) :: bottomValue
+    doubleprecision, intent(in) :: topValue
     doubleprecision :: yRange, dy, VRange
 
     if (y < yBoundLower) then
-      linearVg = Vgb
+      linear = bottomValue
     else if (y > yBoundUpper) then
-      linearVg = Vgt
+      linear = topValue
     else
       yRange = yBoundUpper - yBoundLower
       dy = y - yBoundLower
-      VRange = Vgt - Vgb
-      linearVg = dy / yRange * VRange + Vgb
+      VRange = topValue - bottomValue
+      linear = dy / yRange * VRange + bottomValue
     endif
 
   end function
@@ -516,10 +516,11 @@ contains
     doubleprecision :: B
     doubleprecision :: t0
     doubleprecision :: Vg
+    doubleprecision :: E0
     doubleprecision :: y
 
 ! --------------------------------------------------------------------------------------------------
-    connect = ( .not. (atomA%flag == atomB%flag) ) .or. (atomA%atom_id == atomB%atom_id)
+    connect = .not. (atomA%flag == atomB%flag)
     if (connect) then
       t0 = (3.0D0 * eV2au) / sf
       xA = atomA%atom_pos(1)
@@ -528,20 +529,14 @@ contains
       yB = atomB%atom_pos(2)
       B = Bau
       y = (yB + yA) * 0.5
-      Vg = linearVg(y)
+      Vg = linear(y, Vgb, Vgt)
+      E0 = linear(y, E0b, E0t)
       if (y < middle_y) B = -Bau ! bottom
 
       ! Peierls phase
       phi = 0.5 * B * (yB + yA) * (xB - xA) ! y x already in au
-      coupling_val = t0 * exp(II*phi)
+      coupling_val = t0 * exp(II*phi) + E0 - Vg
 
-      if (y < middle_y) then ! bottom
-        coupling_val = coupling_val + E0b - Vg ! Vgb & E0b is already in au
-
-      else ! top
-        coupling_val = coupling_val + E0t - Vg ! Vgt & E0t is already in au
-
-      endif
     endif
   end function
 ! --------------------------------------------------------------------------------------------------
