@@ -235,11 +235,11 @@ def plotVgtVgb(Vgt: np.ndarray,
 
     plotIm(fig, ax[0,0], Vgt, Vb_unique, B_unique, Vt, "Vgt [V]")
     dVgtdVb = differenciate(Vgt, Vb_unique)
-    plotIm(fig, ax[0,1], dVgtdVb, Vb_unique, B_unique, Vt, r"\frac{dVgt}{dVb} [V]")
+    plotIm(fig, ax[0,1], dVgtdVb, Vb_unique, B_unique, Vt, r"$\frac{dVgt}{dVb}$ [V]")
 
     plotIm(fig, ax[1,0], Vgb, Vb_unique, B_unique, Vt, "Vgb [V]")
     dVgbdVb = differenciate(Vgb, Vb_unique)
-    plotIm(fig, ax[1,1], dVgtdVb, Vb_unique, B_unique, Vt, r"\frac{dVgb}{dVb} [V]")
+    plotIm(fig, ax[1,1], dVgtdVb, Vb_unique, B_unique, Vt, r"$\frac{dVgb}{dVb}$ [V]")
 
     fig.tight_layout()
     fig.savefig(f"{args["allResultsDir"]}VgtVgb.pdf")
@@ -268,11 +268,27 @@ def plotCrossSection(ax, image, Vb_unique, B_unique, Vt, y_label, frac = 0.5):
     ax.grid()
     ax.set_ylabel(y_label)
 
+def filter(array: np.ndarray) -> np.ndarray:
+    avg = np.mean(array)
+    std = np.std(array)
+
+    array[array > (avg + 2.5 * std)] = avg
+    return array
 
 def plotConductance(T_2D: np.ndarray,
                     Vb_unique: np.ndarray,
                     B_unique: np.ndarray,
                     Vt: float) -> None:
+    # nB = T_2D.shape[0] - 8
+    h_nB  = int(T_2D.shape[0] * 1)
+    h_nVb = int(T_2D.shape[1] * 1)
+    l_nB  = int(T_2D.shape[0] * 0.0)
+    l_nVb = int(T_2D.shape[1] * 0.0)
+    # nVb = T_2D.shape[1] - 100
+    T_2D = T_2D[l_nB:h_nB, l_nVb:h_nVb]
+    B_unique = B_unique[l_nB:h_nB]
+    Vb_unique = Vb_unique[l_nVb:h_nVb]
+
     G = T2Gau(T_2D)
     fig, ax = plt.subplots(2, 2, figsize=(16, 11), height_ratios=[3.5,1])
 
@@ -281,6 +297,7 @@ def plotConductance(T_2D: np.ndarray,
     plotCrossSection(ax[1,0], G, Vb_unique, B_unique, Vt, r"$G$ [$\frac{e^2}{h}$]")
 
     dGdVb = differenciate(G, Vb_unique)
+    dgdVb = filter(dGdVb)
     plotIm(fig, ax[0,1], dGdVb, Vb_unique, B_unique, Vt, r"$\frac{dG}{dVb}$")
 
     plotCrossSection(ax[1,1], dGdVb, Vb_unique[:-1], B_unique, Vt, r"$\frac{dG}{dVb}$")
@@ -349,10 +366,15 @@ def processFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, 
         if (idx % 10 == 0) or (idx+1 == l):
             progressBar(idx+1, 1, l, timeStart)
 
-        data = read_csv(os.path.join(dir, "single_T.dat"), ',', header = [0])
-        T   = data[1]
-        Vgt = data[4]
-        Vgb = data[5]
+        try:
+            data = read_csv(os.path.join(dir, "single_T.dat"), ',', header = [0])
+            T   = data[1]
+            Vgt = data[4]
+            Vgb = data[5]
+        except:
+            T   = 0
+            Vgt = 0
+            Vgb = 0
 
         B_list.append(B)
         Vb_list.append(Vb)
@@ -407,6 +429,8 @@ def plotAll(plotForVt) -> None:
     else:
         T_2D, Vgt, Vgb, Vb_unique, B_unique = readFiles(plotForVt)
 
+    T_2D[T_2D > 125] = 125
+    T_2D = filter(T_2D)
     if len(T_2D) == 0: return
 
     plotConductance(T_2D, Vb_unique, B_unique, plotForVt)

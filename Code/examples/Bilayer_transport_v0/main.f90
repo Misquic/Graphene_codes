@@ -25,6 +25,8 @@ program main
   ! Shared variables used by internal procedures
   doubleprecision :: middle_y             ! Y coordinate of fold
   doubleprecision :: middle_x             !
+  doubleprecision :: yBoundLower          ! Y coordinate where Vg goes from Vgb to linear region
+  doubleprecision :: yBoundUpper          ! Y coordinate where Vg goes from linear region to Vgt
   character(len=512) :: results_dir = "./results" ! Directory for output files
 
   doubleprecision :: Bz = 8                     ! B = (0, 0, Bz) !T
@@ -33,9 +35,11 @@ program main
   doubleprecision :: Vgt, Vgb, E0t, E0b, nt, nb ! result from Bilayer
   doubleprecision :: Ef                         ! Fermi energy for calculations
   integer         :: sf = 8                     ! scaling factor
-  integer         :: nx = 50                    ! numbers of atoms / 2 in x direction
+  integer         :: nx = 15                    ! numbers of atoms / 2 in x direction
+  ! integer         :: nx = 50                    ! numbers of atoms / 2 in x direction
                                                 ! results in about 196 nm
-  integer         :: ny = 120                   ! ~numbers of atoms / 2 in y direction (keep even)
+  integer         :: ny = 40                   ! ~numbers of atoms / 2 in y direction (keep even)
+  ! integer         :: ny = 120                   ! ~numbers of atoms / 2 in y direction (keep even)
                                                 ! results in about 408 nm
 
   doubleprecision,parameter :: T2au        = 4.254382E-6          ! B(au) = B(T)*T2au
@@ -328,6 +332,9 @@ contains
     middle_x = 0.5 * (x_min + x_max)
     middle_y = 0.5 * (y_min + y_max)
 
+    yBoundLower = middle_y - (y_max - y_min) * 0.15D0 * 0.5
+    yBoundUpper = middle_y + (y_max - y_min) * 0.15D0 * 0.5
+
     print*, "middle_x", middle_x / nm2au, " nm"
     print*, "middle_y", middle_y / nm2au, " nm"
     print*, "x_min", x_min / nm2au, " nm"
@@ -366,6 +373,7 @@ contains
     ! call addYInvLeads(y_min, y_max, (x_max - x_min) * 1.1 * 0.5, vecs_armchair)
 
     call addXInvLeads(x_min, x_max, (y_max - y_min) * 1.1, vecs_armchair)
+    ! call addYInvLeads(y_min, y_max, (x_max - x_min) * 1.1, vecs_armchair)
 
   end subroutine
 ! --------------------------------------------------------------------------------------------------
@@ -388,15 +396,15 @@ contains
 
 ! --------------------------------------------------------------------------------------------------
 
-    lead_translation = vecs_armchair(:,2)
+    lead_translation = (/ 0.0D0, vecs_armchair(2,2) /) * 2
     print*, "lead_translation: ", lead_translation
 
     ! First lead (lower Y side)
     call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
                               middle_x - 0.1 - leadLength / 2, &
                               middle_x + 0.1 + leadLength / 2, &
-                              y_min - 0.1, &
-                              y_min + vecs_armchair(2,2)  - 0.1)
+                              y_min - lead_translation(2) * 0.25, &
+                              y_min + lead_translation(2) * 0.75)
     call qt%add_lead(rect_shape, (/lead_translation(1), lead_translation(2), 0.0D0 /))
 
     if (save_bands) then
@@ -409,12 +417,13 @@ contains
     call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
                               middle_x - 0.1 - leadLength / 2, &
                               middle_x + 0.1 + leadLength / 2, &
-                              y_max - lead_translation(2) + 0.1, &
-                              y_max + 0.1)
+                              y_max - lead_translation(2) * 0.75, &
+                              y_max + lead_translation(2) * 0.25)
 
     call qt%add_lead(rect_shape, (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
 
   end subroutine
+! --------------------------------------------------------------------------------------------------
 
 
 
@@ -461,6 +470,33 @@ contains
     call qt%add_lead(rect_shape, (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
 
   end subroutine
+! --------------------------------------------------------------------------------------------------
+
+
+! --------------------------------------------------------------------------------------------------
+! Calculate linear gradiend between upper and down side
+! --------------------------------------------------------------------------------------------------
+
+  doubleprecision function linearVg(y)
+    implicit none
+
+    doubleprecision, intent(in) :: y
+    doubleprecision :: yRange, dy, VRange
+
+    if (y < yBoundLower) then
+      linearVg = Vgb
+    else if (y > yBoundUpper) then
+      linearVg = Vgt
+    else
+      yRange = yBoundUpper - yBoundLower
+      dy = y - yBoundLower
+      VRange = Vgt - Vgb
+      linearVg = dy / yRange * VRange + Vgb
+    endif
+
+  end function
+
+
 
 ! --------------------------------------------------------------------------------------------------
 ! Calculate hoping between atoms, here we use Peierls phase
@@ -479,32 +515,31 @@ contains
     doubleprecision :: phi ! Peirles phase
     doubleprecision :: B
     doubleprecision :: t0
-
-    doubleprecision,parameter :: carbon_carbon_dist = 0.142 ! nm
-    doubleprecision,parameter :: geometric_unit = carbon_carbon_dist * sqrt(3.0)
-    doubleprecision,parameter :: geometric_unit2au = geometric_unit * nm2au
-    doubleprecision,parameter :: gu2au_squared = geometric_unit2au*geometric_unit2au
+    doubleprecision :: Vg
+    doubleprecision :: y
 
 ! --------------------------------------------------------------------------------------------------
-    t0 = (3.0D0 * eV2au) / sf
-    connect = .not. (atomA%flag == atomB%flag)
+    connect = ( .not. (atomA%flag == atomB%flag) ) .or. (atomA%atom_id == atomB%atom_id)
     if (connect) then
+      t0 = (3.0D0 * eV2au) / sf
       xA = atomA%atom_pos(1)
       yA = atomA%atom_pos(2)
       xB = atomB%atom_pos(1)
       yB = atomB%atom_pos(2)
       B = Bau
-      if ((yB + yA) * 0.5 < middle_y) B = -Bau ! bottom
+      y = (yB + yA) * 0.5
+      Vg = linearVg(y)
+      if (y < middle_y) B = -Bau ! bottom
 
       ! Peierls phase
       phi = 0.5 * B * (yB + yA) * (xB - xA) ! y x already in au
       coupling_val = t0 * exp(II*phi)
 
-      if ((yB + yA) * 0.5 < middle_y) then ! bottom
-        coupling_val = coupling_val + E0b - Vgb ! Vgb & E0b is already in au
+      if (y < middle_y) then ! bottom
+        coupling_val = coupling_val + E0b - Vg ! Vgb & E0b is already in au
 
       else ! top
-        coupling_val = coupling_val + E0t - Vgt ! Vgt & E0t is already in au
+        coupling_val = coupling_val + E0t - Vg ! Vgt & E0t is already in au
 
       endif
     endif
