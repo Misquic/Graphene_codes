@@ -48,6 +48,7 @@ args = {
     "show"         : 0,                                        # if 1 then shows plots at the end of plotting
     "runTransport" : 1,                                        # if 1 then runTransport = 1
     "sf"           : 8,                                        # scaling factor
+    "filter"       : 1,                                        # if 1 then finters results before plot
     }
 
 def createTab(min, max, num = 3) -> np.ndarray:
@@ -269,10 +270,14 @@ def plotCrossSection(ax, image, Vb_unique, B_unique, Vt, y_label, frac = 0.5):
     ax.set_ylabel(y_label)
 
 def filter(array: np.ndarray) -> np.ndarray:
-    avg = np.mean(array)
-    std = np.std(array)
+    # return array
+    if (args["filter"] == 1):
+        avg = np.mean(array)
+        std = np.std(array)
+        print (f"avg: {avg}, std: {std}")
 
-    array[array > (avg + 2.5 * std)] = avg
+        array[array > (avg + 2.5 * std)] = avg + 2.5 * std
+        array[array < (avg - 2.5 * std)] = avg - 2.5 * std
     return array
 
 def plotConductance(T_2D: np.ndarray,
@@ -429,8 +434,9 @@ def plotAll(plotForVt) -> None:
     else:
         T_2D, Vgt, Vgb, Vb_unique, B_unique = readFiles(plotForVt)
 
-    T_2D[T_2D > 125] = 125
-    T_2D = filter(T_2D)
+    if (args["filter"] == 1):
+        T_2D[T_2D > 125] = 125
+        T_2D = filter(T_2D)
     if len(T_2D) == 0: return
 
     plotConductance(T_2D, Vb_unique, B_unique, plotForVt)

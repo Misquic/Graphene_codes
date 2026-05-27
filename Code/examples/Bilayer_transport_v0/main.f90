@@ -9,7 +9,7 @@
 ! |  |d|  bottom           |d|  !   | \_____bottom____ |     |  | _____bottom____/ |     |d|_____bottom_______|d|
 ! |  |1|  B = (0,0,-Bz)    |2|  !   |  __bottom_gate__ |        |  __bottom_gate__ |     |1|  _bottom__gate_  |2|
 ! |  |_|___________________|_|  !   |__________________|        |__________________|     |_|                  |_|
-! *--------------> X           !
+! *--------------> X            !
 !
 ! Coupling between layers is taken into account with Bilayer class, transport is
 ! calculated using Bubel
@@ -35,9 +35,9 @@ program main
   doubleprecision :: Vgt, Vgb, E0t, E0b, nt, nb ! result from Bilayer
   doubleprecision :: Ef                         ! Fermi energy for calculations
   integer         :: sf = 8                     ! scaling factor
-  integer         :: nx = 50                    ! numbers of atoms / 2 in x direction
+  integer         :: nx = 25                    ! numbers of atoms / 2 in x direction
                                                 ! results in about 196 nm
-  integer         :: ny = 120                   ! ~numbers of atoms / 2 in y direction (keep even)
+  integer         :: ny = 60                    ! ~numbers of atoms / 2 in y direction (keep even)
                                                 ! results in about 408 nm
 
   doubleprecision,parameter :: T2au        = 4.254382E-6          ! B(au) = B(T)*T2au
@@ -68,7 +68,7 @@ program main
 
   if (run_transport) then
     ! Calculate at specific Fermi energy
-    Ef = 0.0000001D0 ! eV
+    Ef = 0.0001D0 ! eV
     print*,"========================================"
     print*,"Calculating transport at Ef = ",Ef," eV"
     print*,"========================================"
@@ -212,7 +212,7 @@ contains
     Vt = parseDoubleArg(Vt)
     save_system = parseBoolArg(.true.)
     run_transport = parseBoolArg(.false.)
-    run_energyScan = parseBoolArg(.false.)
+    run_energyScan = parseBoolArg(run_energyScan)
     plot_results = parseBoolArg(.false.)
     save_densities = parseBoolArg(.false.)
     save_bands = parseBoolArg(.false.)
@@ -274,7 +274,7 @@ contains
     doubleprecision :: pos_min(2) = (/ 0.0D0, 0.0D0/)
     doubleprecision :: x_min      = 0.0D0, x_max = 0.0D0
     doubleprecision :: y_min      = 0.0D0, y_max = 0.0D0
-    type(c_ptr)       :: bilayer
+    type(c_ptr)     :: bilayer
 
 ! --------------------------------------------------------------------------------------------------
     vecs_armchair = vecs_armchair * sf * geometric_unit2au
@@ -520,8 +520,8 @@ contains
     doubleprecision :: y
 
 ! --------------------------------------------------------------------------------------------------
-    connect = .not. (atomA%flag == atomB%flag)
-    if (connect) then
+    if (.not. (atomA%flag == atomB%flag)) then
+      connect = .true.
       t0 = (3.0D0 * eV2au) / sf
       xA = atomA%atom_pos(1)
       yA = atomA%atom_pos(2)
@@ -529,14 +529,21 @@ contains
       yB = atomB%atom_pos(2)
       B = Bau
       y = (yB + yA) * 0.5
-      Vg = linear(y, Vgb, Vgt)
-      E0 = linear(y, E0b, E0t)
       if (y < middle_y) B = -Bau ! bottom
 
       ! Peierls phase
       phi = 0.5 * B * (yB + yA) * (xB - xA) ! y x already in au
-      coupling_val = t0 * exp(II*phi) + E0 - Vg
-
+      coupling_val = t0 * exp(II*phi)
+    else
+      connect = .true.
+      xA = atomA%atom_pos(1)
+      yA = atomA%atom_pos(2)
+      xB = atomB%atom_pos(1)
+      yB = atomB%atom_pos(2)
+      y = (yB + yA) * 0.5
+      Vg = linear(y, Vgb, Vgt)
+      E0 = linear(y, E0b, E0t)
+      coupling_val = + E0 - Vg
     endif
   end function
 ! --------------------------------------------------------------------------------------------------
@@ -552,11 +559,13 @@ contains
     type(qscatter) :: qt
     doubleprecision :: Ef
     doubleprecision :: T_total
+    integer, parameter :: leadsIds(1) = (/ 1 /)
 
 ! --------------------------------------------------------------------------------------------------
     print*,"  Solving transport..."
     call qt%calculate_modes(Ef * eV2au)
-    call qt%solve(1, Ef * eV2au)
+    call qt%solve(1, Ef * eV2au) ! TEST if it is faster
+    ! call qt%solve_leads(leadsIds, Ef * eV2au) ! TEST if it is faster
     T_total = sum(qt%Tn(:))
     print*,"  Total transmission: ", T_total
 
@@ -617,14 +626,14 @@ contains
     implicit none
     type(qscatter) :: qt
     double precision :: E_scan, T_total
-    double precision, parameter :: deltaE = 0.05D0
+    double precision, parameter :: deltaE = 0.001D0
 ! --------------------------------------------------------------------------------------------------
     ! Open output file for energy scan
     open(unit=100, file=trim(results_dir)//"/T.dat")
 
     ! Energy scan parameters
-    E_scan = (-3.0D0 + 0.0001D0) * eV2au
-    do while (E_scan <= 3.025D0 * eV2au)
+    E_scan = (-0.1D0 + 0.0001D0) * eV2au
+    do while (E_scan <= 0.1D0 * eV2au)
       ! Update hamiltonian elements
       call qt%qsystem%update_lattice(c_simple=connect)
 

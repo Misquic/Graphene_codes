@@ -55,8 +55,10 @@ public:
   inline static constexpr uint8_t maxIterationsB    = 30 / VgAlpha;         // max iterations of Bilayer::iterationB
 
   //default values fo Bilayer
-  inline static constexpr double nit_default = 8.12/2 * 1e11 * inv_cmsq2au;
-  inline static constexpr double nib_default = 8.12/2 * 1e11 * inv_cmsq2au;
+  // inline static constexpr double nit_default = 8.12/2 * 1e11 * inv_cmsq2au;
+  inline static constexpr double nit_default = 0 * 1e11 * inv_cmsq2au;
+  // inline static constexpr double nib_default = 8.12/2 * 1e11 * inv_cmsq2au;
+  inline static constexpr double nib_default = 0 * 1e11 * inv_cmsq2au;
   inline static constexpr double dt_default  = 330.0 * nm2au; // SiO2
   inline static constexpr double dg_default  = 0.5 * nm2au;
   inline static constexpr double db_default  = 40.0 * nm2au; // hBN
