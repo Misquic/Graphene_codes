@@ -102,7 +102,7 @@ def plotSingle(files: list[str], dir: str) -> None:
         Vb = read_csv(f"{dir}/Vb.csv")
         print(data)
 
-        title = f"Vt = {round(float(f.split('Vt_')[-1].split('/')[0]))} [V], {getNameOfFile(f)}"
+        title = f"Vt = 0 [V]"
         fig, ax = plotIm(data, B, Vb, title, f.replace(".csv", ".pdf"))
 
 
@@ -114,7 +114,7 @@ def plotDiff(dir):
     B = read_csv(f"{dir}/B.csv")
     Vb = read_csv(f"{dir}/Vb.csv")
 
-    title = f"Vgt - Vgb, Vt = {round(float(dir.split('Vt_')[-1].split('/')[0]))} [V]"
+    title = f"Vgt - Vgb, Vt = 0 [V]"
     plotIm(diff, B, Vb, title, f"{dir}/diff.pdf")
 
 ################################################################################
@@ -125,6 +125,6 @@ if (len(sys.argv) > 1):
 
 files, _ = getFiles(dir, "csv")
 
-plotSingle(filterFiles(files, ["Vgb.csv", "Vgt.csv"]), dir)
+plotSingle(filterFiles(files, ["Vgb.csv", "Vgt.csv", "E0b.csv", "E0t.csv"]), dir)
 
 plotDiff(dir)

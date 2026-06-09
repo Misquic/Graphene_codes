@@ -21,14 +21,15 @@ private:
     const double Bz,
     const double E0t,
     const double E0b,
-    const std::array<double, Const::Nl>& landauLevelsEnergiesTimesInvLorenzianPar,
-    const double sumAtan) const;
+    const std::array<double, Const::Nl>& landauLevelsEnergiesTimesInvLorenzianPar) const;
 
 public:
   // provide densities <n> in 1/cm^2, thicknesses <d> in nm, permitivites <e> in -
   Bilayer(double nit, double nib,
           double dt, double dg, double db,
           double et, double eg, double eb);
+
+  Bilayer(double nit, double nib);
 
   Bilayer();
 

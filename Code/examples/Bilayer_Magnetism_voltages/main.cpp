@@ -8,7 +8,7 @@ int main(int argc, char* argv[]){
 
   std::cout << "Program calculates Voltages numerically in Graphene in Magnetic field (eq.16)\n";
 
-  double Vt = 3;
+  double Vt = 0;
   if(argc >= 2)
   {
     Vt = std::atof(argv[1]);
@@ -16,16 +16,16 @@ int main(int argc, char* argv[]){
 
   Bilayer bilayer;
 
-  const double BMin = 1.f;
+  const double BMin = 5.f;
   const double BMax = 8.f;
   const std::vector<double> BTab = linspace<double>(BMin, BMax, .05f);
 
-  const double VbMin = -60.f;
-  const double VbMax = 30.f;
-  const std::vector<double> VbTab = linspace<double>(VbMin, VbMax, .5f);
+  const double VbMin = -20.f;
+  const double VbMax = 20.f;
+  const std::vector<double> VbTab = linspace<double>(VbMin, VbMax, .125f);
 
-  save(BTab, "./Vt_" + str(Vt) + "/B.csv");
-  save(VbTab, "./Vt_" + str(Vt) + "/Vb.csv");
+  save(BTab, "./results/B.csv");
+  save(VbTab, "./results/Vb.csv");
 
   Array2D<double> resultsVgt(BTab.size(), VbTab.size());
   Array2D<double> resultsVgb(BTab.size(), VbTab.size());
@@ -41,28 +41,19 @@ int main(int argc, char* argv[]){
     {
       Bilayer::resultsB res = {};
 
-      try
-      {
-        res = bilayer.countDensitiesAndPotential(Vt, Vb, B);
-      }
-      catch(const std::runtime_error& e)
-      {
-        std::cerr << e.what() << '\n';
-        res.Vgb = -0.2;
-        res.Vgt = -0.2;
-      }
+      res = bilayer.countDensitiesAndPotential(Vt, Vb, B);
 
-      resultsVgt(BIdx, VbIdx) = res.Vgt;
-      resultsVgb(BIdx, VbIdx) = res.Vgb;
+      resultsVgt(BIdx, VbIdx) = res.E0t;
+      resultsVgb(BIdx, VbIdx) = res.E0b;
 
       BIdx++;
     }
     VbIdx++;
   }
 
-  save(resultsVgt, "./Vt_" + str(Vt) + "/Vgt.csv");
-  save(resultsVgb, "./Vt_" + str(Vt) + "/Vgb.csv");
+  save(resultsVgt, "./results/E0t.csv");
+  save(resultsVgb, "./results/E0b.csv");
 
-  print_hist(resultsVgb);
-  print_hist(resultsVgt);
+  // print_hist(resultsVgb);
+  // print_hist(resultsVgt);
 }

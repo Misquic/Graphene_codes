@@ -31,14 +31,14 @@ program main
 
   doubleprecision :: Bz = 8                     ! B = (0, 0, Bz) !T
   doubleprecision :: Bau                        ! in au
-  doubleprecision :: Vt = 0, Vb = 5             ! eV
+  doubleprecision :: Vt = 0, Vb = -20           ! eV
   doubleprecision :: Vgt, Vgb, E0t, E0b, nt, nb ! result from Bilayer
   doubleprecision :: Ef                         ! Fermi energy for calculations
-  integer         :: sf = 8                     ! scaling factor
-  integer         :: nx = 25                    ! numbers of atoms / 2 in x direction
+  integer         :: sf = 4                     ! scaling factor
+  integer         :: nx = 90                    ! numbers of atoms / 2 in x direction
                                                 ! results in about 196 nm
-  integer         :: ny = 60                    ! ~numbers of atoms / 2 in y direction (keep even)
-                                                ! results in about 408 nm
+  integer         :: ny = 120                    ! ~numbers of atoms / 2 in y direction (keep even)
+                                                ! results in about 170 nm
 
   doubleprecision,parameter :: T2au        = 4.254382E-6          ! B(au) = B(T)*T2au
   doubleprecision,parameter :: eV2au       = 0.03674932587122423  ! V(au)  = V(eV)*eV2au
@@ -68,7 +68,7 @@ program main
 
   if (run_transport) then
     ! Calculate at specific Fermi energy
-    Ef = 0.0001D0 ! eV
+    Ef = 0.000001D0 ! eV
     print*,"========================================"
     print*,"Calculating transport at Ef = ",Ef," eV"
     print*,"========================================"
@@ -291,10 +291,23 @@ contains
     y_min = atoms_armchair(1,2)
     y_max = atoms_armchair(1,2)
 
+    !------------------------------------------ Bilayer --------------------------------------------
+    bilayer = Bilayer_constructor_default()
+
+    call Bilayer_countAll_B(bilayer, Vt, Vb, Bz, Vgt, Vgb, E0t, E0b, nt, nb)
+
+    ! convert back to au
+    Vgt = Vgt * eV2au
+    Vgb = Vgb * eV2au
+    E0t = E0t * eV2au
+    E0b = E0b * eV2au
+    nt = nt * inv_cmsq2au
+    nb = nb * inv_cmsq2au
+
+    !---------------------------------------- Lattice ----------------------------------------------
     call qt%init_system()
-    QSYS_DEBUG_LEVEL = 0
-    QSYS_FORCE_SCHUR_DECOMPOSITION  = .true. ! use schur method to calculate modes which is more stable
-    ! QSYS_SCATTERING_METHOD = QSYS_SCATTERING_QTBM
+    QSYS_DEBUG_LEVEL = 1
+    QSYS_FORCE_SCHUR_DECOMPOSITION  = .false. ! don't use schur method so its quicker
 
     ! Generate atoms positions
     do i = 0, nx
@@ -308,12 +321,12 @@ contains
           ! works only with armchair
           atom_pos(1) = atom_pos(1) - 2 * (j / 2) * vecs_armchair(1,2) ! shift "rows" to make flake rectangular
 
+          ! if (checkShape(atom_pos, pos_min, pos_max)) then
           if (atom_pos(1) > pos_min(1) .and. &
               atom_pos(2) > pos_min(2) .and. &
               atom_pos(1) < pos_max(1) .and. &
               atom_pos(2) < pos_max(2) &
               )then
-              ! atom_pos(1) < x_max + pos_offset_armchair(1) / 2) then
 
             x_max = max(x_max, atom_pos(1))
             x_min = min(x_min, atom_pos(1))
@@ -330,8 +343,11 @@ contains
     middle_x = 0.5 * (x_min + x_max)
     middle_y = 0.5 * (y_min + y_max)
 
-    yBoundLower = middle_y - (y_max - y_min) * 0.15D0 * 0.5
-    yBoundUpper = middle_y + (y_max - y_min) * 0.15D0 * 0.5
+    ! yBoundLower = middle_y - (y_max - y_min) * 0.15D0 * 0.5
+    ! yBoundUpper = middle_y + (y_max - y_min) * 0.15D0 * 0.5
+
+    yBoundLower = middle_y - (y_max - y_min) * 0.00000015D0 * 0.5
+    yBoundUpper = middle_y + (y_max - y_min) * 0.00000015D0 * 0.5
 
     print*, "middle_x", middle_x / nm2au, " nm"
     print*, "middle_y", middle_y / nm2au, " nm"
@@ -340,29 +356,13 @@ contains
     print*, "y_min", y_min / nm2au, " nm"
     print*, "y_max", y_max / nm2au, " nm"
 
+    !---------------------------------------- Coupling ---------------------------------------------
+
     ! Coupling between atoms, onsite energies
     qt%qnnbparam%distance = 0.6 * sf * geometric_unit2au
     qt%qnnbparam%NNB_FILTER = QSYS_NNB_FILTER_DISTANCE
 
     Bau = Bz * T2au
-
-    bilayer = Bilayer_constructor_default()
-
-    call Bilayer_countAll_B(bilayer, Vt, Vb, Bz, Vgt, Vgb, E0t, E0b, nt, nb)
-
-    print*, "Vgt: ", Vgt, " eV"
-    print*, " Vgb ", Vgb, " eV"
-    print*, "E0t ", E0t, " eV"
-    print*, " E0b ", E0b, " eV"
-    print*, " nt ", nt, " 1/nm^2"
-    print*, " nb ", nb, " 1/nm^2"
-    ! convert back to au
-    Vgt = Vgt * eV2au
-    Vgb = Vgb * eV2au
-    E0t = E0t * eV2au
-    E0b = E0b * eV2au
-    nt = nt * inv_cmsq2au
-    nb = nb * inv_cmsq2au
 
     call qt%qsystem%make_lattice(qt%qnnbparam, c_simple=connect)
 
@@ -372,6 +372,17 @@ contains
 
     call addXInvLeads(x_min, x_max, (y_max - y_min) * 1.1, vecs_armchair)
     ! call addYInvLeads(y_min, y_max, (x_max - x_min) * 1.1, vecs_armchair)
+
+    write(*,'(A,f8.5,A)') "nt  ", nt / inv_cmsq2au / 1e11, " 10^11 1/m^2"
+    write(*,'(A,f8.5,A)') "nb  ", nb / inv_cmsq2au / 1e11, " 10^11/m^2"
+    write(*,'(A,f8.5,A)') "Vgt ", Vgt / eV2au, " eV"
+    write(*,'(A,f8.5,A)') "Vgb ", Vgb / eV2au, " eV"
+    write(*,'(A,f8.5,A)') "ot  ", (- E0t - Vgt) / eV2au, " eV"
+    write(*,'(A,f8.5,A)') "ob  ", (- E0b - Vgb) / eV2au, " eV"
+    write(*,'(A,f8.5,A)') "E0t ", E0t / eV2au, " eV"
+    write(*,'(A,f8.5,A)') "E0b ", E0b / eV2au, " eV"
+    ! print*, " nt ", nt, " 1/nm^2"
+    ! print*, " nb ", nb, " 1/nm^2"
 
   end subroutine
 ! --------------------------------------------------------------------------------------------------
@@ -472,9 +483,37 @@ contains
 
 
 ! --------------------------------------------------------------------------------------------------
+! Check if atom position is within bounds
+! --------------------------------------------------------------------------------------------------
+  logical function checkShape(atom_pos, pos_min, pos_max)
+    implicit none
+
+    doubleprecision, intent(in) :: atom_pos(3)
+    doubleprecision, intent(in) :: pos_min(2)
+    doubleprecision, intent(in) :: pos_max(2)
+
+    doubleprecision :: range(2)
+
+    range = pos_max - pos_min
+    ! contacts width is lover then whole width on Y
+
+    checkShape = &
+      (atom_pos(2) > pos_min(2) + range(2) * 0.1 .and. &
+       atom_pos(2) < pos_max(2) - range(2) * 0.1 .and. &
+       atom_pos(1) > pos_min(1) .and. &
+       atom_pos(1) < pos_max(1)) &
+      .or. &
+      (atom_pos(1) > pos_min(1) + range(1) * 0.05 .and. &
+       atom_pos(1) < pos_max(1) - range(1) * 0.05 .and. &
+       atom_pos(2) > pos_min(1) .and. &
+       atom_pos(2) < pos_max(1))
+
+  end function
+
+
+! --------------------------------------------------------------------------------------------------
 ! Calculate linear gradiend between upper and down side
 ! --------------------------------------------------------------------------------------------------
-
   doubleprecision function linear(y, bottomValue, topValue)
     implicit none
 
@@ -495,6 +534,7 @@ contains
     endif
 
   end function
+! --------------------------------------------------------------------------------------------------
 
 
 
@@ -518,7 +558,6 @@ contains
     doubleprecision :: Vg
     doubleprecision :: E0
     doubleprecision :: y
-
 ! --------------------------------------------------------------------------------------------------
     if (.not. (atomA%flag == atomB%flag)) then
       connect = .true.
@@ -543,7 +582,7 @@ contains
       y = (yB + yA) * 0.5
       Vg = linear(y, Vgb, Vgt)
       E0 = linear(y, E0b, E0t)
-      coupling_val = + E0 - Vg
+      coupling_val = - E0 - Vg
     endif
   end function
 ! --------------------------------------------------------------------------------------------------

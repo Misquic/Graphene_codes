@@ -3,11 +3,12 @@
 
 #ifdef DEBUG
 #include <stacktrace>
+// std::cerr << mess << "\nStacktrace:\n" << std::stacktrace::current() << '\n';
 #define assertVerbose(cond, mess) do \
 { \
   if (!(cond)) \
   { \
-    std::cerr << mess << "\nStacktrace:\n" << std::stacktrace::current() << '\n'; \
+    std::cerr << mess << "\nStacktrace:\n"; \
     throw std::runtime_error(#cond " is false\n"); \
   } \
 } \
@@ -1118,13 +1119,15 @@ double bisection(double xLeft, double xRight, Func&& func)
   testForBisection(xLeft, xRight, func);
   #endif
   constexpr int N_max = 32;
-  constexpr double tol = 1e-7;
+  constexpr double tol = 1e-10;
 
   double yLeft = func(xLeft);
   double yRight = func(xRight);
   // dmsg("xl: " << xLeft << " xr: " << xRight << " yl: " << yLeft << " yr: " << yRight);
 
   if (yLeft == 0 && yRight == 0) return (xLeft + xRight) * 0.5;
+  if (yLeft == 0) return xLeft;
+  if (yRight == 0) return xRight;
 
   if (yLeft < 0 && yRight > 0)
   {
@@ -1132,7 +1135,8 @@ double bisection(double xLeft, double xRight, Func&& func)
       double x_new = (xLeft + xRight)*0.5;
       double y_new = func(x_new);
 
-      // dmsg( "y_new: " << y_new << "\n");
+      // dmsg( "y_new: " << y_new);
+      // dmsg( "x_new: " << x_new);
       if( std::abs(y_new) < tol )
       {
         return x_new;

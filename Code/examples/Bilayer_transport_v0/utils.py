@@ -13,8 +13,19 @@ nm2au = 1.0/0.0529
 au2nm = 1/nm2au
 e = 1.
 h = 1.
+V2au = 0.03674932587122423/e
+au2V = 1/V2au
+cm2au = 1e-2 * 1e9 * nm2au
+inv_cmSq2au = 1. / cm2au / cm2au
+au2inv_cmSq = cm2au * cm2au
+
+m2au = 1e9 * nm2au
+inv_mSq2au = 1. / m2au / m2au
+au2inv_mSq = m2au * m2au
+
 eSi = 1.602176634e-19 # [C]
 hSi = 6.62607015e-34  # [Js]
+
 
 def read_csv(path: str, delimiter = ' ', header = None) -> np.ndarray:
     data = pd.read_csv(path, delimiter = delimiter, header = header)
@@ -100,7 +111,7 @@ def printArgs(args: dict) -> None:
         print(f"{key} = {val}")
     print()
 
-def progressBar(current, min, max, timeStart) -> None:
+def progressBar(current, min, max, timeStart, end = '\n') -> None:
     range = max - min + 1
     dist = current - min
 
@@ -111,6 +122,6 @@ def progressBar(current, min, max, timeStart) -> None:
     timeToFinish = (timeTaken * toDo)/np.max([done, 0.000001])
     minutes = timeToFinish // 60
     print(f"Progress: {current}/{range} = {str(round(dist/range*100, 1)).rjust(4)}%, "
-          f"ETA: {minutes} min {round(timeToFinish - minutes * 60, 1)} s   ", end = "\r")
+          f"ETA: {minutes} min {round(timeToFinish - minutes * 60, 1)} s   ", end = end, flush = True)
     if (current == max):
         print('')

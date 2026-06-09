@@ -42,12 +42,28 @@ static inline void count_n_V(double V, double Vg_o, double C, double Cg, double 
 Bilayer::Bilayer(double nit, double nib,
                  double dt, double dg, double db,
                  double et, double eg, double eb):
-  _nit{nit*Const::inv_cmsq2au}, _nib{nib*Const::inv_cmsq2au},
-  _dt{std::abs(dt)*Const::nm2au}, _dg{std::abs(dg)*Const::nm2au}, _db{std::abs(db)*Const::nm2au},
+  _nit{nit * Const::inv_cmsq2au}, _nib{nib * Const::inv_cmsq2au},
+  _dt{std::abs(dt) * Const::nm2au}, _dg{std::abs(dg) * Const::nm2au}, _db{std::abs(db) * Const::nm2au},
   _et{std::abs(et)}, _eg{std::abs(eg)}, _eb{std::abs(eb)},
-  _Ct{Const::eps_0*_et/_dt}, _Cg{Const::eps_0*_eg/_dg}, _Cb{Const::eps_0*_eb/_db}
+  _Ct{Const::eps_0 * _et / _dt}, _Cg{Const::eps_0 * _eg / _dg}, _Cb{Const::eps_0 * _eb / _db}
 {
 };
+
+Bilayer::Bilayer(double nit, double nib):
+  _nit{nit * Const::inv_cmsq2au},
+  _nib{nib * Const::inv_cmsq2au},
+  _dt{Const::dt_default},
+  _dg{Const::dg_default},
+  _db{Const::db_default},
+  _et{Const::et_default},
+  _eg{Const::eg_default},
+  _eb{Const::eb_default},
+  _Ct{Const::Ct_default},
+  _Cg{Const::Cg_default},
+  _Cb{Const::Cb_default}
+{
+};
+
 
 Bilayer::Bilayer():
   _nit{Const::nit_default},

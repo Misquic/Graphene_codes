@@ -12,17 +12,10 @@ static inline std::array<double, 2> prepareTop(
 static inline std::array<double, 2> prepareBot(
   const double grapheneValue, const double bottomValue);
 
-static inline double prepareSumAtan_EnlTimesInvLorenzianPar(
-  const std::array<double, Const::Nl>& landauEnergies);
-
 static inline size_t getLevelIndex(const int level);
 
-static inline std::array<double, Const::Nl> prepareLandauLevelEnergies(
-  const double Bz);
-
 static inline std::array<double, Const::Nl>
-  preparelandauLevelsEnergiesTimesInvLorenzianPar(
-    std::array<double, Const::Nl> LandauLevelEnergies);
+  preparelandauLevelsEnergiesTimesInvLorenzianPar(const double Bz);
 
 static inline double countN(
   const double n0,
@@ -37,8 +30,7 @@ static inline double count4eBz_hPi(const double Bz);
 static double countE0(
   const double Bz,
   const double n0,
-  const std::array<double, Const::Nl>& landauLevelsEnergies,
-  const double sumAtan_EnlTimesInvLorenzianPar);
+  const std::array<double, Const::Nl>& landauLevelsEnergiesTimesInvLorenzianPar);
 
 static double countVg(
   const double Bz,
@@ -46,8 +38,13 @@ static double countVg(
   const std::array<double, 2>& capacities,
   const std::array<double, 2>& voltages,
   const double n0,
-  const std::array<double, Const::Nl>& landauLevelsEnergiesTimesInvLorenzianPar,
-  const double sumAtan_EnlTimesInvLorenzianPar);
+  const std::array<double, Const::Nl>& landauLevelsEnergiesTimesInvLorenzianPar);
+
+static void checkE0(const double E0,
+                    const double B_au,
+                    const double _ni,
+                    const std::array<double,
+                    Const::Nl>& landauLevelsEnergiesTimesInvLorenzianPar);
 
 ///////////////////////////// method declarations //////////////////////////////
 
@@ -70,14 +67,14 @@ Bilayer::resultsB Bilayer::countDensitiesAndPotential(
                      Const::VgMax);
 
   // precalculate some values
-  const std::array<double, Const::Nl> landauLevelEnergies = prepareLandauLevelEnergies(B_au);
+  // std::cout << "precalc\n";
   const std::array<double, Const::Nl> landauLevelsEnergiesTimesInvLorenzianPar =
-    preparelandauLevelsEnergiesTimesInvLorenzianPar(landauLevelEnergies);
-  const double sumAtan = prepareSumAtan_EnlTimesInvLorenzianPar(
-    landauLevelsEnergiesTimesInvLorenzianPar);
+    preparelandauLevelsEnergiesTimesInvLorenzianPar(B_au);
 
-  const double E0t = countE0(B_au, _nit, landauLevelEnergies, sumAtan);
-  const double E0b = countE0(B_au, _nib, landauLevelEnergies, sumAtan);
+  const double E0t = countE0(B_au, _nit, landauLevelsEnergiesTimesInvLorenzianPar);
+  // const double E0t = -0.0319331884 * Const::eV2au;
+  const double E0b = countE0(B_au, _nib, landauLevelsEnergiesTimesInvLorenzianPar);
+  // const double E0b = -0.0319331884 * Const::eV2au;
 
   bool converged = false;
   uint8_t it = 0;
@@ -87,7 +84,7 @@ Bilayer::resultsB Bilayer::countDensitiesAndPotential(
     it++;
     auto[newVgt, newVgb, newConverged] =
       iterationB(
-        Vt_au, Vb_au, Vgt, Vgb, B_au, E0t, E0b, landauLevelsEnergiesTimesInvLorenzianPar, sumAtan);
+        Vt_au, Vb_au, Vgt, Vgb, B_au, E0t, E0b, landauLevelsEnergiesTimesInvLorenzianPar);
 
     Vgt = Const::VgAlpha * newVgt + (1. - Const::VgAlpha) * Vgt;
     Vgb = Const::VgAlpha * newVgb + (1. - Const::VgAlpha) * Vgb;
@@ -106,7 +103,10 @@ Bilayer::resultsB Bilayer::countDensitiesAndPotential(
   const double nt = countN(_nit, capacitiesT, voltagesT, Vgt);
   const double nb = countN(_nib, capacitiesB, voltagesB, Vgb);
 
-  // return results and log them
+#ifdef DEBUG
+  checkE0(E0t, B_au, _nit, landauLevelsEnergiesTimesInvLorenzianPar);
+  checkE0(E0b, B_au, _nib, landauLevelsEnergiesTimesInvLorenzianPar);
+#endif
 
   resultsB results = {
     .nt = nt / Const::inv_cmsq2au,
@@ -116,6 +116,10 @@ Bilayer::resultsB Bilayer::countDensitiesAndPotential(
     .E0t = E0t / Const::eV2au,
     .E0b = E0b / Const::eV2au
   };
+
+  // std::printf("-E0t - eVgt = %f \t -E0b - eVgb = %f\n",
+  //            -results.E0t - results.Vgt,
+  //            -results.E0b - results.Vgb);
 
   return results;
 };
@@ -129,8 +133,7 @@ std::tuple<double, double, bool> Bilayer::iterationB(
   const double Bz,
   const double E0t,
   const double E0b,
-  const std::array<double, Const::Nl>& landauLevelsEnergiesTimesInvLorenzianPar,
-  const double sumAtan_EnlTimesInvLorenzianPar) const
+  const std::array<double, Const::Nl>& landauLevelsEnergiesTimesInvLorenzianPar) const
 {
   const std::array<double, 2> capacitiesT = prepareTop(_Ct, _Cg);
   const std::array<double, 2> capacitiesB = prepareBot(_Cg, _Cb);
@@ -141,30 +144,6 @@ std::tuple<double, double, bool> Bilayer::iterationB(
   double Vgt = 0;
   double Vgb = 0;
 
-  // if (r < 0.333) // both from prev // ASK czy to ma sens to mieszanie? chyba nie wpływa na wyniki bardzo
-  // {
-
-  //   Vgt =
-  //   countVg(
-  //     Bz,
-  //     E0t,
-  //     capacitiesT,
-  //     voltagesT,
-  //     _nit,
-  //     landauLevelEnergies,
-  //     sumAtan_EnlTimesInvLorenzianPar);
-  //   Vgb =
-  //     countVg(
-  //       Bz,
-  //       E0b,
-  //       capacitiesB,
-  //       voltagesB,
-  //       _nib,
-  //       landauLevelEnergies,
-  //       sumAtan_EnlTimesInvLorenzianPar);
-  // }
-  // else if (r < 0.666) // count Vgt first and take it to calculation of Vgb
-  // {
   Vgt =
     countVg(
       Bz,
@@ -172,8 +151,7 @@ std::tuple<double, double, bool> Bilayer::iterationB(
       capacitiesT,
       voltagesT,
       _nit,
-      landauLevelsEnergiesTimesInvLorenzianPar,
-      sumAtan_EnlTimesInvLorenzianPar);
+      landauLevelsEnergiesTimesInvLorenzianPar);
 
   voltagesB[0] = Vgt;
   Vgb =
@@ -183,33 +161,7 @@ std::tuple<double, double, bool> Bilayer::iterationB(
       capacitiesB,
       voltagesB,
       _nib,
-      landauLevelsEnergiesTimesInvLorenzianPar,
-      sumAtan_EnlTimesInvLorenzianPar);
-  // }
-  // else // count Vgb first and take it to calculation of Vgt
-  // {
-
-  //   Vgb =
-  //     countVg(
-  //       Bz,
-  //       E0b,
-  //       capacitiesB,
-  //       voltagesB,
-  //       _nib,
-  //       landauLevelEnergies,
-  //       sumAtan_EnlTimesInvLorenzianPar);
-
-  //   voltagesT[1] = Vgb;
-  //   Vgt =
-  //     countVg(
-  //       Bz,
-  //       E0t,
-  //       capacitiesT,
-  //       voltagesT,
-  //       _nit,
-  //       landauLevelEnergies,
-  //       sumAtan_EnlTimesInvLorenzianPar);
-  // }
+      landauLevelsEnergiesTimesInvLorenzianPar);
 
   const double absoluteErrorT = std::abs(Vgt - prevVgt);
   const double absoluteErrorB = std::abs(Vgb - prevVgb);
@@ -240,48 +192,22 @@ static inline std::array<double, 2> prepareBot(
   return {grapheneValue, bottomValue};
 }
 
-static inline double prepareSumAtan_EnlTimesInvLorenzianPar(
-  const std::array<double, Const::Nl>& landauLevelsEnergiesTimesInvLorenzianPar)
-{
-  double sum = 0;
-
-  for (double EnlTimesInvLorenzianPar: landauLevelsEnergiesTimesInvLorenzianPar)
-  {
-    sum += std::atan(EnlTimesInvLorenzianPar);
-  }
-
-  return sum;
-}
-
 static inline size_t getLevelIndex(const int level)
 {
   assert(level >= -Const::L_max && level <= Const::L_max);
   return Const::L_max + level;
 }
 
-static inline std::array<double, Const::Nl> prepareLandauLevelEnergies(
-  const double Bz)
-{
-  std::array<double, Const::Nl> landauLevelEnergies{0};
-
-  for (int level = -Const::L_max; level <= Const::L_max; level++)
-  {
-    landauLevelEnergies[getLevelIndex(level)] = landauLevelEnergy(level, Bz);
-  }
-
-  return landauLevelEnergies;
-}
-
 static inline std::array<double, Const::Nl>
-  preparelandauLevelsEnergiesTimesInvLorenzianPar(
-    std::array<double, Const::Nl> landauLevelEnergies)
+  preparelandauLevelsEnergiesTimesInvLorenzianPar(const double Bz)
 {
   std::array<double, Const::Nl> landauLevelsEnergiesTimesInvLorenzianPar{0};
 
-  for (size_t level = 0; level < landauLevelEnergies.size(); level++)
+  for (int level = -Const::L_max; level <= Const::L_max; level++)
   {
-    landauLevelsEnergiesTimesInvLorenzianPar[level] =
-      landauLevelEnergies[level] * Const::inv_Lorentzian_par;
+    // dmsg("index: " << getLevelIndex(level) << " landauLevelEnergy: " << landauLevelEnergy(level, Bz) << '\n');
+    landauLevelsEnergiesTimesInvLorenzianPar[getLevelIndex(level)] =
+      landauLevelEnergy(level, Bz) * Const::inv_Lorentzian_par;
   }
 
   return landauLevelsEnergiesTimesInvLorenzianPar;
@@ -309,32 +235,38 @@ static inline double landauLevelEnergy(const int level, const double Bz)
 
 static inline double count4eBz_hPi(const double Bz)
 {
-  return 4. * Const::e * Bz / (Const::h * M_PI);
+  return (4. * Const::e * Bz) / (Const::h * M_PI);
 }
 
 static double countE0(
   const double Bz,
   const double n0,
-  const std::array<double, Const::Nl>& landauLevelsEnergies,
-  const double sumAtan_EnlTimesInvLorenzianPar)
+  const std::array<double, Const::Nl>& landauLevelsEnergiesTimesInvLorenzianPar)
 {
   const double expr = count4eBz_hPi(Bz);
 
   auto func =
-  [n0, Bz, expr, &landauLevelsEnergies, sumAtan_EnlTimesInvLorenzianPar]
+  [n0, expr, &landauLevelsEnergiesTimesInvLorenzianPar]
   (const double E0)
   {
+    const double E0timesInvLorenzianPar = E0 * Const::inv_Lorentzian_par;
+
+    // double sum = std::atan(landauLevelsEnergiesTimesInvLorenzianPar[0] + 0); // 0th level
     double sum = 0;
-    for (double Enl: landauLevelsEnergies)
+    for (int level = -Const::L_max; level <= Const::L_max; level++)
     {
-      sum += std::atan((E0 - Enl) * Const::inv_Lorentzian_par);
+      double EnlTimesInvLorPar = landauLevelsEnergiesTimesInvLorenzianPar[getLevelIndex(level)];
+      sum += (std::atan(E0timesInvLorenzianPar - EnlTimesInvLorPar));
+      //  +
+              // std::atan(E0timesInvLorenzianPar + EnlTimesInvLorPar));
+      // E_{nl} = -E_{-nl}
     }
 
-    sum += sumAtan_EnlTimesInvLorenzianPar;
-
+    // sum += sumAtan_EnlTimesInvLorenzianPar; // sumAtan = 0
     return expr * sum - n0;
   };
 
+  // std::cout << "E0\n";
   return bisection(Const::E0Min, Const::E0Max, func);
 }
 
@@ -344,33 +276,63 @@ static double countVg(
   const std::array<double, 2>& capacities,
   const std::array<double, 2>& voltages,
   const double n0,
-  const std::array<double, Const::Nl>& landauLevelsEnergiesTimesInvLorenzianPar,
-  const double sumAtan_EnlTimesInvLorenzianPar)
+  const std::array<double, Const::Nl>& landauLevelsEnergiesTimesInvLorenzianPar)
 {
   const double expr = count4eBz_hPi(Bz);
 
   auto func =
   [n0, &capacities, &voltages, expr, Bz, E0,
-    &landauLevelsEnergiesTimesInvLorenzianPar,
-    sumAtan_EnlTimesInvLorenzianPar]
+    &landauLevelsEnergiesTimesInvLorenzianPar]
   (double Vg)
   {
     const double left = countN(n0, capacities, voltages, Vg);
     const double shiftedE = (E0 + Const::e * Vg) * Const::inv_Lorentzian_par;
 
+    // double right = std::atan(landauLevelsEnergiesTimesInvLorenzianPar[0] + 0); // 0th level
     double right = 0;
-    for (double EnlTimesInvLorenzianPar: landauLevelsEnergiesTimesInvLorenzianPar)
+    for (int level = -Const::L_max; level <= Const::L_max; level++)
     {
-      right += std::atan(shiftedE - EnlTimesInvLorenzianPar);
+      double EnlTimesInvLorPar = landauLevelsEnergiesTimesInvLorenzianPar[getLevelIndex(level)];
+      right += (std::atan(shiftedE - EnlTimesInvLorPar));
+      //  +
+                // std::atan(shiftedE + EnlTimesInvLorPar));
+      // E_{nl} = -E_{-nl}
     }
 
-    right += sumAtan_EnlTimesInvLorenzianPar;
+    // right += sumAtan_EnlTimesInvLorenzianPar // sumAtan = 0;
 
     return expr*right - left;
   };
 
+  // std::cout << "Vg\n";
   return bisection(Const::VgMin, Const::VgMax, func);
 }
 
+static void checkE0(const double E0,
+                    const double B_au,
+                    const double _ni,
+                    const std::array<double,
+                    Const::Nl>& landauLevelsEnergiesTimesInvLorenzianPar)
+{
+  double sum = 0;
+  const double expr = count4eBz_hPi(B_au);
+  (void)landauLevelsEnergiesTimesInvLorenzianPar;
+  // const double E0timesInvLorenzianPar = E0 * Const::inv_Lorentzian_par;
+  // for (double EnlTimesInvLorenzianPar: landauLevelsEnergiesTimesInvLorenzianPar)
+  // {
+  //   sum += std::atan(E0timesInvLorenzianPar - EnlTimesInvLorenzianPar);
+  // }
 
+  // sum += sumAtan_EnlTimesInvLorenzianPar;
+
+  for (int level = -Const::L_max; level <= Const::L_max; level++)
+  {
+    sum += std::atan((E0 - landauLevelEnergy(level, B_au)) * Const::inv_Lorentzian_par) + 0;
+          //  std::atan(landauLevelEnergy(level, B_au) * Const::inv_Lorentzian_par);
+  }
+
+  double check = expr * sum;
+
+  std::printf("_ni = %e, check = %e, diff = %e, rel = %f%% \n", _ni, check, std::abs(_ni - check), std::abs(_ni - check)/check * 100);
+}
 
