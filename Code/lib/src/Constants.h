@@ -48,18 +48,18 @@ public:
   // parameters constants only for now it will change
   inline static constexpr double Lorentzian_par     = 1e-3 * eV2au;         // witdh in approx for delta function
   inline static constexpr double inv_Lorentzian_par = 1. / Lorentzian_par;
-  inline static constexpr double VgAbsTol           = 1e-6 * V2au;          // Tolerance of absolute error for Vg
-  inline static constexpr double VgRelTol           = 1e-6;                 // Tolerance of relative error for Vg
+  inline static constexpr double VgAbsTol           = 1e-10 * V2au;          // Tolerance of absolute error for Vg
+  inline static constexpr double VgRelTol           = 1e-7;                 // Tolerance of relative error for Vg
   inline static constexpr double smallNumber        = 1e-14 * V2au;         // Don't devide by zero
-  inline static constexpr double VgAlpha            = 0.3;                   // relaxation, 1 -> only new Value 0 -> only previous value;
-  inline static constexpr uint8_t maxIterationsB    = 30 / VgAlpha;         // max iterations of Bilayer::iterationB
+  inline static constexpr double VgAlpha            = 1;                   // relaxation, 1 -> only new Value 0 -> only previous value;
+  inline static constexpr uint16_t maxIterationsB   = 400 / VgAlpha;         // max iterations of Bilayer::iterationB
 
   //default values fo Bilayer
   // inline static constexpr double nit_default = 8.12/2 * 1e11 * inv_cmsq2au;
-  inline static constexpr double nit_default = 3 * 1e11 * inv_cmsq2au;
+  inline static constexpr double nit_default = 8.12/2 * 1e11 * inv_cmsq2au;
   // inline static constexpr double nit_default = 0 * 1e11 * inv_cmsq2au;
   // inline static constexpr double nib_default = 8.12/2 * 1e11 * inv_cmsq2au;
-  inline static constexpr double nib_default = 3 * 1e11 * inv_cmsq2au;
+  inline static constexpr double nib_default = 8.12/2 * 1e11 * inv_cmsq2au;
   // inline static constexpr double nib_default = 0 * 1e11 * inv_cmsq2au;
   inline static constexpr double dt_default  = 330.0 * nm2au; // SiO2
   inline static constexpr double dg_default  = 0.5 * nm2au;
@@ -72,8 +72,8 @@ public:
   inline static constexpr double Cg_default  = eps_0 * eg_default / dg_default;
   // inline static constexpr double Cb_default  = eps_0 * eb_default / db_default;
   inline static constexpr double Cb_default  = eps_0 * 1. / (db_default / eb_default + dt_default / et_default);
-  inline static constexpr int L_max = 400;
-  inline static constexpr size_t Nl = 2 * static_cast<size_t>(L_max) + 1;
+  inline static constexpr int L_max = 500;
+  inline static constexpr size_t Nl = static_cast<size_t>(L_max) + 1;
   // inline static constexpr size_t Nl = 2 * static_cast<size_t>(L_max) + 1;
 
   inline static double E0Min = -5 * eV2au;

@@ -16,6 +16,8 @@
 
 program main
   use modscatter
+  use FortUtils
+  use TransportUtils
   use, intrinsic :: iso_c_binding
   implicit none
 
@@ -27,34 +29,15 @@ program main
   doubleprecision :: middle_x             !
   doubleprecision :: yBoundLower          ! Y coordinate where Vg goes from Vgb to linear region
   doubleprecision :: yBoundUpper          ! Y coordinate where Vg goes from linear region to Vgt
-  character(len=512) :: results_dir = "./results" ! Directory for output files
 
-  doubleprecision :: Bz = 8                     ! B = (0, 0, Bz) !T
   doubleprecision :: Bau                        ! in au
-  doubleprecision :: Vt = 0, Vb = -20           ! eV
   doubleprecision :: Vgt, Vgb, E0t, E0b, nt, nb ! result from Bilayer
   doubleprecision :: Ef                         ! Fermi energy for calculations
-  integer         :: sf = 4                     ! scaling factor
+  doubleprecision :: T                          ! Transmission
   integer         :: nx = 90                    ! numbers of atoms / 2 in x direction
                                                 ! results in about 196 nm
-  integer         :: ny = 120                    ! ~numbers of atoms / 2 in y direction (keep even)
+  integer         :: ny = 120                   ! ~numbers of atoms / 2 in y direction (keep even)
                                                 ! results in about 170 nm
-
-  doubleprecision,parameter :: T2au        = 4.254382E-6          ! B(au) = B(T)*T2au
-  doubleprecision,parameter :: eV2au       = 0.03674932587122423  ! V(au)  = V(eV)*eV2au
-  doubleprecision,parameter :: nm2au       = 1.0 / 0.0529           ! d(au)  = d(nm)*nm2au
-  doubleprecision,parameter :: cm2au       = 1e-2 * 1e9 * nm2au
-  doubleprecision,parameter :: inv_cmsq2au = 1. / cm2au / cm2au
-  doubleprecision,parameter :: one_over_sqrt_3 = 1.0D0 / sqrt(3.0)
-
-  logical :: run_transport = .true.
-  logical :: run_energyScan = .true.
-  logical :: plot_results = .true.
-  logical :: save_system = .true.
-  logical :: save_densities = .true.
-  logical :: save_bands = .true.
-
-  integer :: currentArgIndex = 1
 
 !!!!!!!!!!!!!!!!!!!!!!!! main function !!!!!!!!!!!!!!!!!!!!!!!
   call parseArguments()
@@ -72,19 +55,26 @@ program main
     print*,"========================================"
     print*,"Calculating transport at Ef = ",Ef," eV"
     print*,"========================================"
-    call solveTransport(qt, Ef)
+    T =  solveTransport(qt, Ef)
     if (save_densities) then
       call calculateElectronDensity(qt)
-      call saveResults(qt)
+      call saveDensities(qt)
     endif
 
-    ! Perform energy scan
+    ! Write to file
+    open(unit=101, file=trim(results_dir)//"/single_T.dat")
+    write(101,"(A)") "Ef[au],T[-],E0t[au],E0b[au],Vgt[au],Vgb[au],nt[au],nb[au]"
+    write(101,"(g0,',',g0,',',g0,',',g0,',',g0,',',g0,',',g0,',',g0)") &
+      Ef * eV2au, T, E0t, E0b, Vgt, Vgb, nt, nb
+
+    close(101)
+
     if (run_energyScan) then
       print*,""
       print*,"========================================"
       print*,"Performing energy scan..."
       print*,"========================================"
-      call performEnergyScan(qt)
+      call performEnergyScan(qt, connect)
     endif
 
     print*,"Calculation complete!"
@@ -97,151 +87,8 @@ program main
     print*,"========================================"
     call generatePlots()
   endif
+
 contains
-
-
-
-! --------------------------------------------------------------------------------------------------
-! Get next command line argument
-! --------------------------------------------------------------------------------------------------
-  logical function getNextArgument(arg_buffer)
-    implicit none
-    character(len=512) :: arg_buffer
-    integer :: argc
-
-! --------------------------------------------------------------------------------------------------
-
-    argc = command_argument_count()
-    getNextArgument = .false.
-    if (argc >= currentArgIndex) then
-      call get_command_argument(currentArgIndex, arg_buffer)
-      currentArgIndex = currentArgIndex + 1
-      getNextArgument = .true.
-    endif
-  end function getNextArgument
-! --------------------------------------------------------------------------------------------------
-
-
-
-! --------------------------------------------------------------------------------------------------
-! Parse bool from next command line argument
-! --------------------------------------------------------------------------------------------------
-  logical function parseBoolArg(defaultValue)
-    implicit none
-    logical defaultValue
-    character(len=512) :: arg_buffer
-
-! --------------------------------------------------------------------------------------------------
-    if (getNextArgument(arg_buffer)) then
-      ! Default to true, set to false if starts with 'f', 'F', or '0'
-      if (arg_buffer(1:1) == 't' .or. arg_buffer(1:1) == 'T' .or. arg_buffer(1:1) == '1') then
-        parseBoolArg = .true.
-      else
-        parseBoolArg = .false.
-      endif
-    else
-      parseBoolArg = defaultValue
-    endif
-  end function parseBoolArg
-! --------------------------------------------------------------------------------------------------
-
-
-
-! --------------------------------------------------------------------------------------------------
-! Parse integer from next command line argument
-! --------------------------------------------------------------------------------------------------
-  integer function parseIntArg(defaultValue)
-    implicit none
-    integer :: defaultValue
-    character(len=512) :: arg_buffer
-
-! --------------------------------------------------------------------------------------------------
-    if (getNextArgument(arg_buffer)) then
-      read(arg_buffer, *) parseIntArg
-    else
-      parseIntArg = defaultValue
-    endif
-  end function parseIntArg
-! --------------------------------------------------------------------------------------------------
-
-
-
-! --------------------------------------------------------------------------------------------------
-! Parse Double Precision from next command line argument
-! --------------------------------------------------------------------------------------------------
-  doubleprecision function parseDoubleArg(defaultValue)
-    implicit none
-    double precision :: defaultValue
-    character(len=512) :: arg_buffer
-
-! --------------------------------------------------------------------------------------------------
-    if (getNextArgument(arg_buffer)) then
-      read(arg_buffer, *) parseDoubleArg
-    else
-      parseDoubleArg = defaultValue
-    endif
-  end function parseDoubleArg
-! --------------------------------------------------------------------------------------------------
-
-
-
-! --------------------------------------------------------------------------------------------------
-! Parse Arguments into global variables
-! --------------------------------------------------------------------------------------------------
-  subroutine parseArguments()
-    character(len=512) :: arg_buffer
-    character(len=512) :: help_buffer
-
-! --------------------------------------------------------------------------------------------------
-
-    ! check first argument if it's "help" then print help and exit, else its results dir
-    if (getNextArgument(arg_buffer)) then
-      help_buffer = trim(arg_buffer)
-      if (help_buffer == "help") then
-        print*, "usage: ./Transport2D <resultsDir> <B in T> <Vb> <Vt> &
-                 <save_system> <run_transport> <run_energyScan> &
-                 <plot_results> <save_densities> <save_bands> <sf>"
-        call exit(0)
-      else
-        results_dir = trim(arg_buffer)
-      endif
-    endif
-
-    Bz = parseDoubleArg(Bz)
-    Vb = parseDoubleArg(Vb)
-    Vt = parseDoubleArg(Vt)
-    save_system = parseBoolArg(.true.)
-    run_transport = parseBoolArg(.false.)
-    run_energyScan = parseBoolArg(run_energyScan)
-    plot_results = parseBoolArg(.false.)
-    save_densities = parseBoolArg(.false.)
-    save_bands = parseBoolArg(.false.)
-    sf = parseIntArg(sf)
-
-    print*, "usage: ./Transport2D <resultsDir> <B in T> <Vb> <Vt> &
-             <save_system> <run_transport> <run_energyScan> &
-             <plot_results> <save_densities> <save_bands> <sf>"
-    print*, ""
-    print*, "Parsed Arguments"
-    print*, ""
-    print*, "results_dir: ", trim(results_dir)
-    print*, "Bz: ", Bz, " T"
-    print*, "Vb: ", Vb, " eV"
-    print*, "Vt: ", Vt, " eV"
-    print*, "save_system: ", save_system
-    print*, "run_transport: ", run_transport
-    print*, "run_energyScan: ", run_energyScan
-    print*, "plot_results: ", plot_results
-    print*, "save_densities: ", save_densities
-    print*, "save_bands: ", save_bands
-    print*, "sf: ", sf
-    print*, ""
-    print*, ""
-    print*, ""
-  end subroutine
-! --------------------------------------------------------------------------------------------------
-
-
 
 ! --------------------------------------------------------------------------------------------------
 ! Create System
@@ -321,12 +168,12 @@ contains
           ! works only with armchair
           atom_pos(1) = atom_pos(1) - 2 * (j / 2) * vecs_armchair(1,2) ! shift "rows" to make flake rectangular
 
-          ! if (checkShape(atom_pos, pos_min, pos_max)) then
-          if (atom_pos(1) > pos_min(1) .and. &
-              atom_pos(2) > pos_min(2) .and. &
-              atom_pos(1) < pos_max(1) .and. &
-              atom_pos(2) < pos_max(2) &
-              )then
+          if (checkShape(atom_pos, pos_min, pos_max)) then
+          ! if (atom_pos(1) > pos_min(1) .and. &
+          !     atom_pos(2) > pos_min(2) .and. &
+          !     atom_pos(1) < pos_max(1) .and. &
+          !     atom_pos(2) < pos_max(2) &
+          !     )then
 
             x_max = max(x_max, atom_pos(1))
             x_min = min(x_min, atom_pos(1))
@@ -346,15 +193,17 @@ contains
     ! yBoundLower = middle_y - (y_max - y_min) * 0.15D0 * 0.5
     ! yBoundUpper = middle_y + (y_max - y_min) * 0.15D0 * 0.5
 
-    yBoundLower = middle_y - (y_max - y_min) * 0.00000015D0 * 0.5
-    yBoundUpper = middle_y + (y_max - y_min) * 0.00000015D0 * 0.5
+    yBoundLower = middle_y
+    yBoundUpper = middle_y
 
-    print*, "middle_x", middle_x / nm2au, " nm"
-    print*, "middle_y", middle_y / nm2au, " nm"
-    print*, "x_min", x_min / nm2au, " nm"
-    print*, "x_max", x_max / nm2au, " nm"
-    print*, "y_min", y_min / nm2au, " nm"
-    print*, "y_max", y_max / nm2au, " nm"
+    write(*, "(A,f10.5,A)"), "middle_x    ", middle_x / nm2au, " nm"
+    write(*, "(A,f10.5,A)"), "middle_y    ", middle_y / nm2au, " nm"
+    write(*, "(A,f10.5,A)"), "yBoundLower ", yBoundLower / nm2au, " nm"
+    write(*, "(A,f10.5,A)"), "yBoundUpper ", yBoundUpper / nm2au, " nm"
+    write(*, "(A,f10.5,A)"), "x_min       ", x_min / nm2au, " nm"
+    write(*, "(A,f10.5,A)"), "x_max       ", x_max / nm2au, " nm"
+    write(*, "(A,f10.5,A)"), "y_min       ", y_min / nm2au, " nm"
+    write(*, "(A,f10.5,A)"), "y_max       ", y_max / nm2au, " nm"
 
     !---------------------------------------- Coupling ---------------------------------------------
 
@@ -373,14 +222,14 @@ contains
     call addXInvLeads(x_min, x_max, (y_max - y_min) * 1.1, vecs_armchair)
     ! call addYInvLeads(y_min, y_max, (x_max - x_min) * 1.1, vecs_armchair)
 
-    write(*,'(A,f8.5,A)') "nt  ", nt / inv_cmsq2au / 1e11, " 10^11 1/m^2"
-    write(*,'(A,f8.5,A)') "nb  ", nb / inv_cmsq2au / 1e11, " 10^11/m^2"
-    write(*,'(A,f8.5,A)') "Vgt ", Vgt / eV2au, " eV"
-    write(*,'(A,f8.5,A)') "Vgb ", Vgb / eV2au, " eV"
-    write(*,'(A,f8.5,A)') "ot  ", (- E0t - Vgt) / eV2au, " eV"
-    write(*,'(A,f8.5,A)') "ob  ", (- E0b - Vgb) / eV2au, " eV"
-    write(*,'(A,f8.5,A)') "E0t ", E0t / eV2au, " eV"
-    write(*,'(A,f8.5,A)') "E0b ", E0b / eV2au, " eV"
+    write(*,"(A,f8.5,A)") "nt  ", nt / inv_cmsq2au / 1e11, " 10^11 1/m^2"
+    write(*,"(A,f8.5,A)") "nb  ", nb / inv_cmsq2au / 1e11, " 10^11/m^2"
+    write(*,"(A,f8.5,A)") "Vgt ", Vgt / eV2au, " eV"
+    write(*,"(A,f8.5,A)") "Vgb ", Vgb / eV2au, " eV"
+    write(*,"(A,f8.5,A)") "ot  ", (- E0t - Vgt) / eV2au, " eV"
+    write(*,"(A,f8.5,A)") "ob  ", (- E0b - Vgb) / eV2au, " eV"
+    write(*,"(A,f8.5,A)") "E0t ", E0t / eV2au, " eV"
+    write(*,"(A,f8.5,A)") "E0b ", E0b / eV2au, " eV"
     ! print*, " nt ", nt, " 1/nm^2"
     ! print*, " nb ", nb, " 1/nm^2"
 
@@ -389,7 +238,7 @@ contains
 
 
 
-  ! --------------------------------------------------------------------------------------------------
+! --------------------------------------------------------------------------------------------------
 ! Add 2 leads on Y sides, Y invariant?
 ! --------------------------------------------------------------------------------------------------
   subroutine addYInvLeads(y_min, y_max, leadLength, vecs_armchair)
@@ -512,33 +361,6 @@ contains
 
 
 ! --------------------------------------------------------------------------------------------------
-! Calculate linear gradiend between upper and down side
-! --------------------------------------------------------------------------------------------------
-  doubleprecision function linear(y, bottomValue, topValue)
-    implicit none
-
-    doubleprecision, intent(in) :: y
-    doubleprecision, intent(in) :: bottomValue
-    doubleprecision, intent(in) :: topValue
-    doubleprecision :: yRange, dy, VRange
-
-    if (y < yBoundLower) then
-      linear = bottomValue
-    else if (y > yBoundUpper) then
-      linear = topValue
-    else
-      yRange = yBoundUpper - yBoundLower
-      dy = y - yBoundLower
-      VRange = topValue - bottomValue
-      linear = dy / yRange * VRange + bottomValue
-    endif
-
-  end function
-! --------------------------------------------------------------------------------------------------
-
-
-
-! --------------------------------------------------------------------------------------------------
 ! Calculate hoping between atoms, here we use Peierls phase
 ! to simulate magnetic field with gauge: A = (-Bz * y,0,0)
 ! i.e. B = (0,0,Bz)
@@ -547,12 +369,12 @@ contains
     use modcommons
     implicit none
 
-    type(qatom) :: atomA, atomB !
-    type(qatom) :: atoms(:)     !
-    complex*16  :: coupling_val !
+    type(qatom) :: atomA, atomB ! flags of atoms
+    type(qatom) :: atoms(:)     ! unused
+    complex*16  :: coupling_val ! result coupling
 
     doubleprecision :: xA, yA, xB, yB
-    doubleprecision :: phi ! Peirles phase
+    doubleprecision :: phi
     doubleprecision :: B
     doubleprecision :: t0
     doubleprecision :: Vg
@@ -580,153 +402,10 @@ contains
       xB = atomB%atom_pos(1)
       yB = atomB%atom_pos(2)
       y = (yB + yA) * 0.5
-      Vg = linear(y, Vgb, Vgt)
-      E0 = linear(y, E0b, E0t)
+      Vg = linear(y, Vgt, Vgb, yBoundUpper, yBoundLower)
+      E0 = linear(y, E0t, E0b, yBoundUpper, yBoundLower)
       coupling_val = - E0 - Vg
     endif
   end function
 ! --------------------------------------------------------------------------------------------------
-
-
-
-! --------------------------------------------------------------------------------------------------
-! Solve transport problem
-! --------------------------------------------------------------------------------------------------
-  subroutine solveTransport(qt, Ef)
-    use modscatter
-    implicit none
-    type(qscatter) :: qt
-    doubleprecision :: Ef
-    doubleprecision :: T_total
-    integer, parameter :: leadsIds(1) = (/ 1 /)
-
-! --------------------------------------------------------------------------------------------------
-    print*,"  Solving transport..."
-    call qt%calculate_modes(Ef * eV2au)
-    call qt%solve(1, Ef * eV2au) ! TEST if it is faster
-    ! call qt%solve_leads(leadsIds, Ef * eV2au) ! TEST if it is faster
-    T_total = sum(qt%Tn(:))
-    print*,"  Total transmission: ", T_total
-
-    ! Write to file
-    open(unit=101, file=trim(results_dir)//"/single_T.dat")
-    write(101,"(A)") "Ef(au),T_total,E0t(au),E0b(au),Vgt(au),Vgb(au),nt(au),nb(au)"
-    write(101,"(g0,',',g0,',',g0,',',g0,',',g0,',',g0,',',g0,',',g0)") &
-      Ef * eV2au, T_total, E0t, E0b, Vgt, Vgb, nt, nb
-
-    close(101)
-  end subroutine solveTransport
-! --------------------------------------------------------------------------------------------------
-
-
-
-! --------------------------------------------------------------------------------------------------
-! Calculate electron density
-! --------------------------------------------------------------------------------------------------
-  subroutine calculateElectronDensity(qt)
-    use modscatter
-    implicit none
-    type(qscatter) :: qt
-    integer :: i
-
-! --------------------------------------------------------------------------------------------------
-    print*,"  Calculating electron density..."
-    do i = 1, size(qt%qsystem%qauxvec)
-      qt%qsystem%qauxvec(i) = sum(qt%qsystem%densities(:,i))
-    enddo
-  end subroutine calculateElectronDensity
-! --------------------------------------------------------------------------------------------------
-
-
-
-! --------------------------------------------------------------------------------------------------
-! Save calculated results
-! --------------------------------------------------------------------------------------------------
-  subroutine saveResults(qt)
-    use modscatter
-    implicit none
-    type(qscatter) :: qt
-
-! --------------------------------------------------------------------------------------------------
-    print*,"  Saving results..."
-    call qt%qsystem%save_data(trim(results_dir)//"/densities.xml", &
-                              array2d=qt%qsystem%densities, &
-                              array1d=qt%qsystem%qauxvec)
-  end subroutine saveResults
-! --------------------------------------------------------------------------------------------------
-
-
-
-! --------------------------------------------------------------------------------------------------
-! Perform energy scan
-! --------------------------------------------------------------------------------------------------
-  subroutine performEnergyScan(qt)
-    use modscatter
-    implicit none
-    type(qscatter) :: qt
-    double precision :: E_scan, T_total
-    double precision, parameter :: deltaE = 0.001D0
-! --------------------------------------------------------------------------------------------------
-    ! Open output file for energy scan
-    open(unit=100, file=trim(results_dir)//"/T.dat")
-
-    ! Energy scan parameters
-    E_scan = (-0.1D0 + 0.0001D0) * eV2au
-    do while (E_scan <= 0.1D0 * eV2au)
-      ! Update hamiltonian elements
-      call qt%qsystem%update_lattice(c_simple=connect)
-
-      ! Calculate modes and solve
-      call qt%calculate_modes(E_scan)
-      call qt%solve(1, E_scan)
-
-      ! Get total transmission
-      T_total = sum(qt%Tn(:))
-
-      ! Write to file
-      write(100,"(g0,',',g0)") E_scan, T_total
-
-      E_scan = E_scan + deltaE * eV2au
-    enddo
-
-    close(100)
-  end subroutine performEnergyScan
-! --------------------------------------------------------------------------------------------------
-
-
-
-! --------------------------------------------------------------------------------------------------
-! Generate plots using existing Python scripts
-! --------------------------------------------------------------------------------------------------
-  subroutine generatePlots()
-    implicit none
-
-! --------------------------------------------------------------------------------------------------
-    if (save_bands) then
-      print*,"  Plotting band structure..."
-      call execute_command_line("python plot_bands.py "//trim(results_dir)//"/")
-    endif
-    print*,"  Plotting Transmission..."
-    call execute_command_line("python plot_T.py "//trim(results_dir)//"/")
-  end subroutine generatePlots
-! --------------------------------------------------------------------------------------------------
-
 end program main
-
-! TODO
-! - skalowanie np 8 (czy przy skalowaniu wystarczy mniejszy np 48x96)
-! - powiększyć układ
-! - poszerzyć leady
-! - G = 2e^2/h*T
-
-! cyfronet:
-!   - module load intel/2023b lub intel/2025b?
-
-! 3D układ (całki przeskoku?)
-! więcej leadów (4pkt?)
-
-! Zapytać jeszcze o
-! potencjał/relaksacja - najpierw gładkie przejście może wystarczy
-! r
-
-! Dlaczego na wykresach V jest skok względem B?

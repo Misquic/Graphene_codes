@@ -1118,8 +1118,8 @@ double bisection(double xLeft, double xRight, Func&& func)
   #ifdef DEBUG
   testForBisection(xLeft, xRight, func);
   #endif
-  constexpr int N_max = 32;
-  constexpr double tol = 1e-10;
+  constexpr int N_max = 64;
+  constexpr double tol = 1e-15;
 
   double yLeft = func(xLeft);
   double yRight = func(xRight);
@@ -1184,4 +1184,4 @@ double bisection(double xLeft, double xRight, Func&& func)
   return (xLeft + xRight) * 0.5;
 };
 
-#endif//UTILITIES_H
+#endif // UTILITIES_H
