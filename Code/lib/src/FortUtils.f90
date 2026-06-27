@@ -15,11 +15,25 @@ module FortUtils
   logical :: save_densities = .false.
   logical :: save_bands = .false.
   integer :: sf = 8
+  logical :: save_currents = .false.
 
 contains
 
-  ! Get next command line argument
-  ! --------------------------------------------------------------------------------------------------
+! --------------------------------------------------------------------------------------------------
+! Convert int to str
+! --------------------------------------------------------------------------------------------------
+  character(len=20) function str(val)
+    implicit none
+
+    integer, intent(in) :: val
+
+    write(str, "(i20)") val
+    str = adjustl(str)
+
+  end function str
+
+! --------------------------------------------------------------------------------------------------
+! Get next command line argument
 ! --------------------------------------------------------------------------------------------------
   logical function getNextArgument(arg_buffer)
     implicit none
@@ -116,8 +130,8 @@ contains
       help_buffer = trim(arg_buffer)
       if (help_buffer == "help") then
         print*, "usage: ./Transport2D <resultsDir> <B in T> <Vb> <Vt> &
-                 <save_system> <run_transport> <run_energyScan> &
-                 <plot_results> <save_densities> <save_bands> <sf>"
+                 <save_system> <run_transport> <run_energyScan> <plot_results> &
+                 <save_densities> <save_bands> <sf> <save_currents>"
         call exit(0)
       else
         results_dir = trim(arg_buffer)
@@ -134,10 +148,11 @@ contains
     save_densities = parseBoolArg(save_densities)
     save_bands = parseBoolArg(save_bands)
     sf = parseIntArg(sf)
+    save_currents = parseBoolArg(save_currents)
 
     print*, "usage: ./Transport2D <resultsDir> <B in T> <Vb> <Vt> &
-             <save_system> <run_transport> <run_energyScan> &
-             <plot_results> <save_densities> <save_bands> <sf>"
+             <save_system> <run_transport> <run_energyScan> <plot_results> &
+             <save_densities> <save_bands> <sf> <save_currents>"
     print*, ""
     print*, "Parsed Arguments"
     print*, ""
@@ -152,6 +167,7 @@ contains
     print*, "save_densities: ", save_densities
     print*, "save_bands: ", save_bands
     print*, "sf: ", sf
+    print*, "save_currents: ", save_currents
     print*, ""
     print*, ""
     print*, ""

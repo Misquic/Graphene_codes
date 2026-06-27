@@ -11,10 +11,10 @@ import os
 import time
 import asyncio
 # from types import List
-from matplotlib.collections import LineCollection
-from matplotlib.colors import Normalize
 
 from utils import *
+from plotUtils import *
+from args import *
 
 # ============ for latex fonts ============
 from matplotlib import rc #, font_manager
@@ -29,32 +29,6 @@ plt.rcParams.update({"xtick.labelsize": 14,
 		             "axes.formatter.use_mathtext": True,
 		             "axes.labelpad": 6.0 })
 # ==========================================
-
-# np co 0.2 V
-args = {
-    "BMin"         : 1.,           "BMax" : 8.,                # min and max induction in T
-    "VbMin"        : 1.,           "VbMax": 10.,               # min and max bottom gate voltages in V
-    "VtMin"        : 0.,           "VtMax": 0.,                # min and max top gate voltages in V
-    "maxParallel"  : 2,                                        # maximum number of parralel simulations
-    "numB"         : 5,            "numVb": 5,   "numVt": 1,   # number of B/Vt/Vb values to run
-    "dB"           : -1.,          "dVb"  : -1.,               # delta used instead of num, default is negative so it is not used
-    "clearDir"     : 0,                                        # if 1 then clears dir if it exists
-    "saveOld"      : 0,                                        # if 1 then saves previous folder under the same name into old
-    "plotAll"      : 0,                                        # if 1 then plots results after simulation
-    "runSim"       : 0,                                        # if 1 then runs simulation
-    "allResultsDir": "./results/",                             # directory to store all results
-    "saveStdout"   : 0,                                        # if 1 then saves outputs from simulations to file else >dev/null
-    "saveSystem"   : 0,                                        # if 1 then saves created system to file
-    "processFiles" : 0,                                        # if 1 then forces processing files even when previously processed
-    "show"         : 0,                                        # if 1 then shows plots at the end of plotting
-    "runTransport" : 1,                                        # if 1 then runTransport = 1
-    "sf"           : 4,                                        # scaling factor
-    "filter"       : 0,                                        # if 1 then finters results before plot
-    "prepCmdsOnly" : 0,                                        # if 1 then only prepares commands and doesn't run sims
-    "Executable"   : "./Transport2D",                          # exetucable to simulation
-    "cmap"         : "viridis",                                # cmap for plots
-    "cut"          : 0,                                        # cut plots to Bmin Bmax Vbmin Vbmax
-}
 
 def createTab(min, max, num = 3) -> np.ndarray:
     if min == max:
@@ -76,6 +50,7 @@ def prepareCommandsAndDirs()-> list[str]:
     saveDensities = 0
     saveBands     = 0
     sf            = args["sf"]
+    saveCurrents  = args["saveCurrents"]
 
     if (args["dB"] <= 0):
         BTab = createTab(args["BMin"], args["BMax"], args["numB"])
@@ -124,9 +99,10 @@ def prepareCommandsAndDirs()-> list[str]:
     execCommand(f"mkdir --p {allResultsDir}")
     execCommand(f"mkdir --p {allResultsDir}dirs/")
 
-    # # command to save system
-    # command = f"{args["Executable"]} {allResultsDir} {np.max(BTab)} -60 0 1 0 0 0 0 0 {sf}"
-    # commands.append(command)
+    # command to save system
+    if saveSystem:
+        command = f"{args["Executable"]} {allResultsDir} {np.max(BTab)} -60 0 1 0 0 0 0 0 {sf} 0"
+        commands.append(command)
 
     # Vt is outside because it is likely to be single value
     maxIdx = len(VtTab) * len(BTab) * len(VbTab)
@@ -146,11 +122,12 @@ def prepareCommandsAndDirs()-> list[str]:
 
                 # "usage: ./Transport2D <resultsDir> <B in T> <Vb> <Vt> &
                 #  <save_system> <run_transport> <plot_results> &
-                #  <save_densities> <save_bands>"
+                #  <save_densities> <save_bands> <sf> <saveCurrents>"
                 commandArgs = [ resultsDir,
                                 str(B), str(Vb), str(Vt),
-                                str(saveSystem), str(runTransport), str(runEnergyScan),
-                                str(plotResults), str(saveDensities), str(saveBands), str(sf)]
+                                str(0), str(runTransport), str(runEnergyScan),
+                                str(plotResults), str(saveDensities), str(saveBands), str(sf),
+                                str(saveCurrents)]
 
                 command = f"{args["Executable"]} "
                 for a in commandArgs:
@@ -226,147 +203,13 @@ def getParamsFromDir(dir: str) -> tuple[float, float, float]:
 
     return B, Vb, Vt
 
-def plotIm(fig, ax, x, Vb, B, Vt, cbar_label):
-    im = ax.imshow(x, extent=(Vb[0], Vb[-1], B[0], B[-1]),
-                   aspect=(Vb[-1] - Vb[0]) / (B[-1] - B[0]),
-                #    origin="lower", interpolation="bilinear", cmap="viridis")
-                   origin="lower", interpolation="nearest", cmap=args["cmap"])
-
-    ax.set_title(f"Vt = {Vt} V")
-    ax.set_xlabel("Vb [V]")
-    ax.set_ylabel("B [T]")
-
-    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    cbar.set_label(cbar_label)
-
-def differenciate(image, x, y = None):
-    if y is None:
-        xAxis = 1
-        dX = np.diff(x)
-        dImage = np.diff(image, 1, axis = xAxis)
-        dImagedX = dImage/dX
-        return dImagedX
-    else:
-        yAxis = 0
-        dY = np.diff(y)
-        dImage = np.diff(image, 1, axis = yAxis)
-        dImagedY = (dImage.transpose()/dY).transpose()
-        return dImagedY
-
-def plotVgtVgb(Vgt: np.ndarray,
-               Vgb: np.ndarray,
-               Vb: np.ndarray,
-               B: np.ndarray,
-               Vt: float) -> None:
-    print("Plotting Voltages")
-
-    fig, ax = plt.subplots(2, 2, figsize=(18, 16))
-
-    Vgt = Vgt * au2V
-    Vgb = Vgb * au2V
-
-    plotIm(fig, ax[0,0], Vgt, Vb, B, Vt, "Vgt [V]")
-    dVgtdVb = differenciate(Vgt, Vb)
-    plotIm(fig, ax[0,1], dVgtdVb, Vb, B, Vt, r"$\frac{dVgt}{dVb}$ [V/V]")
-
-    plotIm(fig, ax[1,0], Vgb, Vb, B, Vt, "Vgb [V]")
-    dVgbdVb = differenciate(Vgb, Vb)
-    plotIm(fig, ax[1,1], dVgbdVb, Vb, B, Vt, r"$\frac{dVgb}{dVb}$ [V/V]")
-
-    fig.tight_layout()
-    fig.savefig(f"{args["allResultsDir"]}VgtVgb.pdf")
-
-def plotE0tE0b(E0t: np.ndarray,
-               E0b: np.ndarray,
-               Vb: np.ndarray,
-               B: np.ndarray,
-               Vt: float) -> None:
-    print("Plotting Energies")
-
-    fig, ax = plt.subplots(2, 2, figsize=(18, 16))
-
-    E0t = filter(filter(E0t)) * au2eV
-    E0b = filter(filter(E0b)) * au2eV
-
-    plotIm(fig, ax[0,0], E0t, Vb, B, Vt, "E0t [eV]")
-    dE0tdB = differenciate(E0t, Vb, B)
-    plotIm(fig, ax[0,1], dE0tdB, Vb, B, Vt, r"$\frac{dE0t}{dB}$ [V/T]")
-
-    plotIm(fig, ax[1,0], E0b, Vb, B, Vt, "E0b [V]")
-    dE0bdB = differenciate(E0b, Vb, B)
-    plotIm(fig, ax[1,1], dE0bdB, Vb, B, Vt, r"$\frac{dE0b}{dB}$ [V/T]")
-
-    fig.tight_layout()
-    fig.savefig(f"{args["allResultsDir"]}E0tE0b.pdf")
-
-def plotDensities(nt: np.ndarray,
-             nb: np.ndarray,
-             Vb: np.ndarray,
-             B: np.ndarray,
-             Vt: float) -> None:
-    print("Plotting Densities")
-
-    fig, ax = plt.subplots(2, 2, figsize=(18, 16))
-
-
-
-    # nt = nt * au2inv_cmSq
-    nt = nt * au2inv_mSq
-    # nb = nb * au2inv_cmSq
-    nb = nb * au2inv_mSq
-
-    maxN = np.max([np.max(nt), np.max(nb)])
-    exp = int(np.log10(maxN)) - 1
-
-    nt = nt / (10 ** exp)
-    nb = nb / (10 ** exp)
-
-    print(maxN, exp)
-
-    plotIm(fig, ax[0,0], nt, Vb, B, Vt, r"nt [$10^{" + str(exp) + r"}$ $\frac{1}{\text{m}^2}$]")
-    # plotIm(fig, ax[0,0], nt, Vb, B, Vt, r"nt [$10^{" + str(exp) + r"}$ $\frac{1}{\text{cm}^2}$]")
-    dnt_dVb = differenciate(nt, Vb)
-    plotIm(fig, ax[0,1], dnt_dVb, Vb, B, Vt, r"$\frac{dnt}{dVb}$")
-
-    plotIm(fig, ax[1,0], nb, Vb, B, Vt, r"nt [$10^{" + str(exp) + r"}$ $\frac{1}{\text{m}^2}$]")
-    # plotIm(fig, ax[1,0], nb, Vb, B, Vt, r"nt [$10^{" + str(exp) + r"}$ $\frac{1}{\text{cm}^2}$]")
-    dnb_dVb = differenciate(nb, Vb)
-    plotIm(fig, ax[1,1], dnb_dVb, Vb, B, Vt, r"$\frac{dnb}{dVb}$")
-
-    fig.tight_layout()
-    fig.savefig(f"{args["allResultsDir"]}densities.pdf")
-
-
-
-def plotCrossSection(ax, image, Vb, B, Vt, y_label, frac = 0.5):
-    Ycoord = int(image.shape[0] * frac)
-    image_middle = image[Ycoord]
-
-    # Get colors from the same normalization as the 2D plot
-    norm = Normalize(vmin=image.min(), vmax=image.max())
-    cmap = plt.get_cmap(args["cmap"])
-
-    # Create line segments for LineCollection
-    points = np.array([Vb, image_middle]).T.reshape(-1, 1, 2)
-    segments = np.concatenate([points[:-1], points[1:]], axis=1)
-
-    # Plot with LineCollection
-    lc = LineCollection(segments, cmap=cmap, norm=norm)
-    lc.set_array(image_middle)
-    lc.set_linewidth(2)
-    ax.add_collection(lc)
-    ax.autoscale()
-
-    ax.set_title(f"B = {round(B[Ycoord], 2)} [T], Vt={Vt} [V]")
-    ax.set_xlabel("Vb [V]")
-    ax.grid()
-    ax.set_ylabel(y_label)
-
 def filter(array: np.ndarray) -> np.ndarray:
     # return array
+    np.nan_to_num(array, False)
+
     if (args["filter"] == 1):
         avg = np.mean(array)
-        std = np.std(array)
+        std = np.sqrt(np.std(array))
         print (f"avg: {avg}, std: {std}")
 
         array[array > (avg + 2.5 * std)] = avg + std
@@ -407,143 +250,6 @@ def cutT(T_2D: np.ndarray,
 
     return T_2D, Vb, B
 
-def plotConductance(T_2D: np.ndarray,
-                    Vb:   np.ndarray,
-                    B:    np.ndarray,
-                    Vt:   float) -> None:
-    print("Plotting Conductance")
-
-    G = T2Gau(T_2D)
-    fig, ax = plt.subplots(2, 3, figsize=(28, 11), height_ratios=[3.5,1])
-
-    plotIm(fig, ax[0,0], G, Vb, B, Vt, r"$G$ [$\frac{e^2}{h}$]")
-    plotCrossSection(ax[1,0], G, Vb, B, Vt, r"$G$ [$\frac{e^2}{h}$]")
-
-    dGdVb = differenciate(G, Vb)
-    plotIm(fig, ax[0,1], dGdVb, Vb, B, Vt, r"$\frac{dG}{dVb}$")
-    plotCrossSection(ax[1,1], dGdVb, Vb[:-1], B, Vt, r"$\frac{dG}{dVb}$")
-
-    dGdB = differenciate(G, Vb, B)
-    plotIm(fig, ax[0,2], dGdB, Vb, B, Vt, r"$\frac{dG}{dB}$")
-    plotCrossSection(ax[1,2], dGdB, Vb, B[:-1], Vt, r"$\frac{dG}{dB}$")
-
-    fig.tight_layout()
-    fig.savefig(f"{args["allResultsDir"]}Conductance.pdf")
-
-def plotResistance(T_2D: np.ndarray,
-                   Vb:   np.ndarray,
-                   B:    np.ndarray,
-                   Vt:   float) -> None:
-    print("Plotting Resistance")
-
-    R = T2RSi(T_2D) / 1000 # get in kiloOhms
-    log10R = np.log10(R)
-    fig, ax = plt.subplots(2, 3, figsize=(28, 11), height_ratios=[3.5,1])
-
-    plotIm(fig, ax[0,0], log10R, Vb, B, Vt, r"$log_{10}(R)$ [$log_{10}(k\Omega)$]")
-    plotCrossSection(ax[1,0], log10R, Vb, B, Vt, r"$log_{10}(R)$ [$log_{10}(k\Omega)$]")
-
-    dGdVb = differenciate(log10R, Vb)
-    plotIm(fig, ax[0,1], dGdVb, Vb, B, Vt, r"$log_{10}(\frac{dR}{dVb})$")
-    plotCrossSection(ax[1,1], dGdVb, Vb[:-1], B, Vt, r"$log_{10}(\frac{dR}{dVb})$")
-
-    dGdB = differenciate(log10R, Vb, B)
-    plotIm(fig, ax[0,2], dGdB, Vb, B, Vt, r"$log_{10}(\frac{dR}{dB})$")
-    plotCrossSection(ax[1,2], dGdB, Vb, B[:-1], Vt, r"$log_{10}(\frac{dR}{dB})$")
-
-    fig.tight_layout()
-    fig.savefig(f"{args["allResultsDir"]}Resistance.pdf")
-
-def T2Gau(T: np.ndarray) -> np.ndarray:
-    return (2*e*e/h)*T
-
-def T2GSi(T: np.ndarray) -> np.ndarray:
-    return (2*eSi*eSi/hSi)*T
-
-def T2RSi(T: np.ndarray) -> np.ndarray:
-
-    T[T < 2] = 2
-    R = 1 / T2GSi(T)
-    return R
-
-def plotdGdV(T_2D: np.ndarray,
-             Vb:   np.ndarray,
-             B:    np.ndarray,
-             Vt:   float) -> None:
-    print("Plotting dGdV")
-    fig, ax = plt.subplots(figsize=(14, 9))
-
-    dV = np.diff(Vb)
-    BAxis = 0
-    VAxis = 1
-    dG = np.diff(T2Gau(T_2D), 1, axis = VAxis)
-    dGdV = dG/dV
-
-    plotIm(fig, ax, dGdV, Vb, B, Vt, r"$\frac{dG}{dV}$")
-
-    ax.set_title(f"Vt={Vt}")
-    ax.set_ylabel("B [T]")
-    ax.set_xlabel("Vb [V]")
-
-    fig.tight_layout()
-    fig.savefig(f"{args["allResultsDir"]}dGdV.pdf")
-
-def plotdGdB(T_2D, Vb, B, plotForVt):
-    print("Plotting dGdB")
-
-    fig, ax = plt.subplots(figsize=(14, 9))
-
-    dV = np.diff(Vb)
-    dB = np.diff(B)
-    BAxis = 0
-    VAxis = 1
-    dG = np.diff(T2Gau(T_2D), 1, axis = BAxis)
-    dGdB = np.divide(dG.transpose(), dB).transpose()
-
-    plotIm(fig, ax, dGdB, Vb, B, Vt, r"$\frac{dG}{dB}$")
-
-    ax.set_title(f"Vt={Vt}")
-    ax.set_ylabel("B [T]")
-    ax.set_xlabel("Vb [V]")
-
-    fig.tight_layout()
-    fig.savefig(f"{args["allResultsDir"]}dGdB.pdf")
-
-
-def plotOnsites(E0t: np.ndarray,
-                E0b: np.ndarray,
-                Vgt: np.ndarray,
-                Vgb: np.ndarray,
-                Vb: np.ndarray,
-                B: np.ndarray,
-                plotForVt: float):
-    print("Plotting Onsites")
-
-    fig, ax = plt.subplots(2, 3, figsize=(26, 16))
-
-    E0t = E0t * au2eV
-    E0b = E0b * au2eV
-    Vgt = Vgt * au2V
-    Vgb = Vgb * au2V
-
-    onsiteT = - E0t - Vgt
-    onsiteB = - E0b - Vgb
-
-    plotIm(fig, ax[0,0], onsiteT, Vb, B, Vt, "-E0t - Vgt [V]")
-    dOnsiteTdVb = differenciate(onsiteT, Vb)
-    plotIm(fig, ax[0,1], dOnsiteTdVb, Vb, B, Vt, r"$\frac{d(-E0t - Vgt)}{dVb}$ [V]")
-    dOnsiteTdB = differenciate(onsiteT, Vb, B)
-    plotIm(fig, ax[0,2], dOnsiteTdB, Vb, B, Vt, r"$\frac{d(-E0t - Vgt)}{dB}$ [V]")
-
-    plotIm(fig, ax[1,0], onsiteB, Vb, B, Vt, "-E0b - Vgb [V]")
-    dOnsiteBdVb = differenciate(onsiteB, Vb)
-    plotIm(fig, ax[1,1], dOnsiteBdVb, Vb, B, Vt, r"$\frac{d(-E0b - Vgb)}{dVb}$ [V/V]")
-    dOnsiteBdB = differenciate(onsiteB, Vb, B)
-    plotIm(fig, ax[1,2], dOnsiteBdB, Vb, B, Vt, r"$\frac{d(-E0b - Vgb)}{dB}$ [V/V]")
-
-    fig.tight_layout()
-    fig.savefig(f"{args["allResultsDir"]}onsites.pdf")
-
 def saveProcessed(T_2D: np.ndarray,
                   Vgt_2D: np.ndarray,
                   Vgb_2D: np.ndarray,
@@ -551,6 +257,7 @@ def saveProcessed(T_2D: np.ndarray,
                   E0b_2D: np.ndarray,
                   nb_2D: np.ndarray,
                   nt_2D: np.ndarray,
+                  R_2D: np.ndarray,
                   Vb: np.ndarray,
                   B: np.ndarray):
     np.savetxt(args["allResultsDir"] + "Vb.csv", Vb, delimiter=',')
@@ -562,8 +269,9 @@ def saveProcessed(T_2D: np.ndarray,
     np.savetxt(args["allResultsDir"] + "E0b.csv", E0b_2D, delimiter=',')
     np.savetxt(args["allResultsDir"] + "nb.csv", nb_2D, delimiter=',')
     np.savetxt(args["allResultsDir"] + "nt.csv", nt_2D, delimiter=',')
+    np.savetxt(args["allResultsDir"] + "R.csv", R_2D, delimiter=',')
 
-def processFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def processFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     print("Processing Files")
 
     _, dirs = getFiles(args["allResultsDir"] + "dirs/")
@@ -600,6 +308,8 @@ def processFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, 
             Vgb = data[5]
             nt = data[6]
             nb = data[7]
+        except KeyboardInterrupt:
+            raise KeyboardInterrupt
         except:
             print(f"folder with problem: {dir}")
             T   = 0
@@ -609,6 +319,8 @@ def processFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, 
             Vgb = 0
             nt = 0
             nb = 0
+
+
 
         if T == 0:
             print(f"T = 0 in ")
@@ -625,10 +337,10 @@ def processFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, 
 
     if len(B_list) == 0:
         print(f"Nothing to plot for Vt = {plotForVt}")
-        return np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0)
+        return np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0), np.zeros(0)
 
-    print(len(B_list))
-    print(len(dirs))
+    # print(len(B_list))
+    # print(len(dirs))
 
     # Get unique sorted values for grid
     B_unique = np.sort(np.unique(B_list))
@@ -642,6 +354,7 @@ def processFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, 
     E0b_2D = np.zeros((len(B_unique), len(Vb_unique)))
     nt_2D  = np.zeros((len(B_unique), len(Vb_unique)))
     nb_2D  = np.zeros((len(B_unique), len(Vb_unique)))
+    R_2D   = np.zeros((len(B_unique), len(Vb_unique)))
 
     # Fill the 2D array
     for B, Vb, T, Vgt, Vgb, E0t, E0b, nt, nb in zip(B_list, Vb_list, T_list, Vgt_list, Vgb_list, E0t_list, E0b_list, nt_list, nb_list):
@@ -655,11 +368,22 @@ def processFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, 
         nt_2D[i, j]  = nt
         nb_2D[i, j]  = nb
 
-    saveProcessed(T_2D, Vgt_2D, Vgb_2D, E0t_2D, E0b_2D, nt_2D, nb_2D, Vb_unique, B_unique)
+    # process resistances
+    execCommand(f"$SCRIPTS/resistances/resistances {args["allResultsDir"]} {args["leadInfo"]}")
+    Rdata = read_csv(args["allResultsDir"] + "R.dat", delimiter = ',')
 
-    return T_2D, Vgt_2D, Vgb_2D, E0t_2D, E0b_2D, nt_2D, nb_2D, Vb_unique, B_unique
+    for dirName, R in zip(Rdata[:, 0], Rdata[:, 1]):
+        B, Vb, Vt = getParamsFromDir(dirName)
+        R = float(R)
+        i = np.where(B_unique == B)[0][0]
+        j = np.where(Vb_unique == Vb)[0][0]
+        R_2D[i, j] = R
 
-def readFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    saveProcessed(T_2D, Vgt_2D, Vgb_2D, E0t_2D, E0b_2D, nt_2D, nb_2D, R_2D, Vb_unique, B_unique)
+
+    return T_2D, Vgt_2D, Vgb_2D, E0t_2D, E0b_2D, nt_2D, nb_2D, R_2D, Vb_unique, B_unique
+
+def readFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     print("Reading files")
     Vb = np.loadtxt(args["allResultsDir"] + "Vb.csv", delimiter=',')
     B = np.loadtxt(args["allResultsDir"] + "B.csv", delimiter=',')
@@ -670,21 +394,23 @@ def readFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.
     E0b = np.loadtxt(args["allResultsDir"] + "E0b.csv", delimiter=',')
     nt = np.loadtxt(args["allResultsDir"] + "nt.csv", delimiter=',')
     nb = np.loadtxt(args["allResultsDir"] + "nb.csv", delimiter=',')
+    R = np.loadtxt(args["allResultsDir"] + "R.csv", delimiter=',')
 
-    return T, Vgt, Vgb, E0t, E0b, nt, nb, Vb, B
+    return T, Vgt, Vgb, E0t, E0b, nt, nb, R, Vb, B
 
 def plotAll(plotForVt : float) -> None:
     if (not os.path.exists(args["allResultsDir"] + "T.csv") or \
         not os.path.exists(args["allResultsDir"] + "Vgt.csv") or \
         not os.path.exists(args["allResultsDir"] + "Vgb.csv") or
         args["processFiles"]):
-        T_2D, Vgt, Vgb, E0t, E0b, nt, nb, Vb, B = processFiles(plotForVt)
+        T_2D, Vgt, Vgb, E0t, E0b, nt, nb, R, Vb, B = processFiles(plotForVt)
     else:
-        T_2D, Vgt, Vgb, E0t, E0b, nt, nb, Vb, B = readFiles(plotForVt)
+        T_2D, Vgt, Vgb, E0t, E0b, nt, nb, R, Vb, B = readFiles(plotForVt)
 
     if (args["filter"] == 1):
-        T_2D[T_2D > 125] = 125
+        # T_2D[T_2D > 125] = 125
         T_2D = filter(T_2D)
+        R = filter(R)
     if len(T_2D) == 0: return
 
     if (args["cut"] == 1):
@@ -695,11 +421,12 @@ def plotAll(plotForVt : float) -> None:
         E0t,  _, _ = cutT(E0t,  Vb, B)
         E0b,  _, _ = cutT(E0b,  Vb, B)
         nt,   _, _ = cutT(nt,   Vb, B)
+        R,    _, _ = cutT(R,   Vb, B)
         nb,  Vb, B = cutT(nb,  Vb, B)
 
     print("Plotting")
     plotConductance(T_2D, Vb, B, plotForVt)
-    plotResistance( T_2D, Vb, B, plotForVt)
+    plotResistance(R, Vb, B, plotForVt)
     plotVgtVgb(Vgt, Vgb, Vb, B, plotForVt)
     plotE0tE0b(E0t, E0b, Vb, B, plotForVt)
     plotDensities(nt, nb, Vb, B, plotForVt)

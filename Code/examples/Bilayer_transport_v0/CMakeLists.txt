@@ -1,5 +1,5 @@
 ﻿add_executable(Bilayer_transport_v0 ${CMAKE_CURRENT_SOURCE_DIR}/main.f90)
-target_sources(Bilayer_transport_v0 PRIVATE TransportUtils.f90)
+target_sources(Bilayer_transport_v0 PRIVATE ../TransportUtils.f90)
 
 # all needed libraries (mainly for bubel)
 target_link_libraries(Bilayer_transport_v0 PRIVATE GrapheneLib

@@ -23,6 +23,7 @@ end interface
 contains
 
 
+
 ! --------------------------------------------------------------------------------------------------
 ! Calculate linear gradiend between upper and down side
 ! --------------------------------------------------------------------------------------------------
@@ -36,6 +37,7 @@ contains
     doubleprecision, intent(in) :: yBoundLower
     doubleprecision :: yRange, dy, VRange
 
+! --------------------------------------------------------------------------------------------------
     if (y < yBoundLower) then
       linear = bottomValue
     else if (y > yBoundUpper) then
@@ -75,6 +77,62 @@ contains
 ! --------------------------------------------------------------------------------------------------
 
 
+! --------------------------------------------------------------------------------------------------
+! Solve transport problem for multiple leads
+! --------------------------------------------------------------------------------------------------
+  function solveTransportMultilead(qt, Ef, numLeads) result(transmissions)
+    use modscatter
+    implicit none
+
+    type(qscatter)                :: qt
+    doubleprecision               :: Ef ! pass in eV
+    integer                       :: numLeads
+
+    doubleprecision, dimension(numLeads, numLeads) :: transmissions
+
+    ! doubleprecision :: T_total
+    integer         :: leadId
+    integer         :: i, j
+
+    doubleprecision, parameter :: cartesian_vecs(3,3) = (/ (/ 1.0D0, 0.0D0, 0.0D0 /), &
+                                                           (/ 0.0D0, 1.0D0, 0.0D0 /), &
+                                                           (/ 0.0D0, 0.0D0, 1.0D0 /) /)
+
+! --------------------------------------------------------------------------------------------------
+    print*,"  Solving transport..."
+    call qt%calculate_modes(Ef * eV2au)
+
+    ! if more then 1 leads, last to calculate is lead 1 so qt%Tn is saved for that one
+    do leadId = numLeads, 1, -1
+      call qt%solve(leadId, Ef * eV2au)
+
+      if (save_currents) then
+        call qt%calculate_currents(leadId)
+        call qt%qsystem%save_currents(trim(results_dir)//"/current_"//trim(str(leadId))//".txt", cartesian_vecs)
+      endif
+
+    enddo
+
+    if (save_currents) then
+      print*, "plotting"
+      call execute_command_line("python plot_currents.py "//trim(results_dir))
+    endif
+
+    do j = 1 , numLeads ! from?
+      do i = 1 , numLeads ! to?
+        transmissions(i, j) = sum(abs(qt%smatrix(i,j)%Tnm)**2)
+        print"(A,i3,A,i3,A,f10.6)","T(",i,",",j,")=", transmissions(i, j)
+      enddo
+    enddo
+
+    ! Or you can print total tranmission and reflection using auxiliary matrices
+    ! but this remember only the last call of qt%solve(lead,Ef) and it contains
+    ! summed tranmission probabilies for all leads
+    print*,"T     =",sum(qt%Tn(:))
+    print*,"R     =",sum(qt%Rn(:))
+
+  end function solveTransportMultilead
+
 
 ! --------------------------------------------------------------------------------------------------
 ! Calculate electron density
@@ -90,25 +148,11 @@ contains
     do i = 1, size(qt%qsystem%qauxvec)
       qt%qsystem%qauxvec(i) = sum(qt%qsystem%densities(:,i))
     enddo
-  end subroutine calculateElectronDensity
-! --------------------------------------------------------------------------------------------------
-
-
-
-! --------------------------------------------------------------------------------------------------
-! Save calculated resdensitiesults
-! --------------------------------------------------------------------------------------------------
-  subroutine saveDensities(qt)
-    use modscatter
-    implicit none
-    type(qscatter) :: qt
-
-! --------------------------------------------------------------------------------------------------
-    print*,"  Saving results Densities..."
     call qt%qsystem%save_data(trim(results_dir)//"/densities.xml", &
                               array2d=qt%qsystem%densities, &
                               array1d=qt%qsystem%qauxvec)
-  end subroutine saveDensities
+
+  end subroutine calculateElectronDensity
 ! --------------------------------------------------------------------------------------------------
 
 

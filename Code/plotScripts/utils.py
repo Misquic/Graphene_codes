@@ -26,6 +26,13 @@ au2inv_mSq = m2au * m2au
 eSi = 1.602176634e-19 # [C]
 hSi = 6.62607015e-34  # [Js]
 
+def T2Gau(T: np.ndarray) -> np.ndarray:
+    return (2*e*e/h)*T
+
+
+def T2GSi(T: np.ndarray) -> np.ndarray:
+    return (2*eSi*eSi/hSi)*T
+
 
 def read_csv(path: str, delimiter = ' ', header = None) -> np.ndarray:
     data = pd.read_csv(path, delimiter = delimiter, header = header)
@@ -34,7 +41,8 @@ def read_csv(path: str, delimiter = ' ', header = None) -> np.ndarray:
         data = data.flatten()
     return data
 
-def getFiles(dir) -> tuple[list[str], list[str]]:
+
+def getFiles(dir, ext = None) -> tuple[list[str], list[str]]:
     absPath = os.path.abspath(dir)
     files = []
     dirs = []
@@ -48,13 +56,38 @@ def getFiles(dir) -> tuple[list[str], list[str]]:
         else:
             dirs.append(abs)
 
+    if (ext is not None):
+        files = [f for f in files if f.split('.')[-1] == ext]
+
+    files.sort()
+
     return files, dirs
+
+
+def getNameOfFile(file: str) -> str:
+    nameWithExtension = file.split('/')[-1]
+    splitDot = nameWithExtension.split('.')
+
+    l = len(splitDot)
+    if (l == 1 or l == 2):
+        return splitDot[0]
+    elif (len(splitDot) > 2):
+        name = splitDot[0]
+        for part in splitDot[1:-1]:
+            name += '.'
+            name += part
+        return name
+
+    print(f"Error in getNameOfFile")
+    assert False
+
 
 def assert_mess(cond: bool, mess:str = "") -> None:
     if not cond:
         print(mess)
 
     assert(cond)
+
 
 def printUsage(args: dict) -> None:
     if not hasattr(printUsage, "isUsagePrinted"):
@@ -67,6 +100,7 @@ def printUsage(args: dict) -> None:
         printUsage.isUsagePrinted = True
     else:
         assert_mess(False, "usage already printed")
+
 
 def parseArgs(args: dict) -> None:
     printUsage(args)
@@ -106,10 +140,12 @@ def parseArgs(args: dict) -> None:
     if (args["allResultsDir"][len(args["allResultsDir"])-1] != '/'):
         args["allResultsDir"] += '/'
 
+
 def printArgs(args: dict) -> None:
     for key, val in args.items():
         print(f"{key} = {val}")
     print()
+
 
 def progressBar(current, min, max, timeStart, end = '\n') -> None:
     range = max - min + 1

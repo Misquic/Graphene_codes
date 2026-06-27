@@ -1,0 +1,29 @@
+# np co 0.2 V
+args = {
+    "BMin"         : 1.,           "BMax" : 8.,                # min and max induction in T
+    "VbMin"        : 1.,           "VbMax": 10.,               # min and max bottom gate voltages in V
+    "VtMin"        : 0.,           "VtMax": 0.,                # min and max top gate voltages in V
+    "maxParallel"  : 2,                                        # maximum number of parralel simulations
+    "numB"         : 5,            "numVb": 5,   "numVt": 1,   # number of B/Vt/Vb values to run
+    "dB"           : -1.,          "dVb"  : -1.,               # delta used instead of num, default is negative so it is not used
+    "clearDir"     : 0,                                        # if 1 then clears dir if it exists
+    "saveOld"      : 0,                                        # if 1 then saves previous folder under the same name into old
+    "plotAll"      : 0,                                        # if 1 then plots results after simulation
+    "runSim"       : 0,                                        # if 1 then runs simulation
+    "allResultsDir": "./results/",                             # directory to store all results
+    "saveStdout"   : 0,                                        # if 1 then saves outputs from simulations to file else >dev/null
+    "saveSystem"   : 0,                                        # if 1 then saves created system to file
+    "processFiles" : 0,                                        # if 1 then forces processing files even when previously processed
+    "show"         : 0,                                        # if 1 then shows plots at the end of plotting
+    "runTransport" : 1,                                        # if 1 then runTransport = 1
+    "sf"           : 4,                                        # scaling factor
+    "filter"       : 0,                                        # if 1 then finters results before plot
+    "prepCmdsOnly" : 0,                                        # if 1 then only prepares commands and doesn't run sims
+    "Executable"   : "./Transport2D",                          # exetucable to simulation
+    "cmap"         : "viridis",                                # cmap for plots
+    "cut"          : 0,                                        # cut plots to Bmin Bmax Vbmin Vbmax
+    "saveCurrents" : 0,                                        # saves and plots currents
+    "leadInfo"     : "\"currentLeadFrom currentLeadTo voltageLeadHigh voltageLeadLow\"", \
+                                                               # leadInfo for resistances postprocessing
+    "resistance"   : 0,
+}

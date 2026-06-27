@@ -1,15 +1,15 @@
 ! This program calculates transport for "simply" twisted graphene flake. It means
 ! that twisted boundary is not taken into account, there is just flip of magnetic
 ! field. System looks like this (x and y used are for 1 view reference, not physical coordinates)
-!    (unfolded view)            !   (side view left)             (side view right)        (side view front)
-! Y   ________________________  !   ____lead1___________        ____lead2___________     ___                   ___
-! ^  |l|  top              |l|  !   |  ___top__gate___ |        |  ___top__gate___ |     |l|  ___top_gate___  |l|
-! |  |e|  B = (0,0,Bz)     |e|  !   |  _______top_____ |     ^  | _______top_____  |     |e|_______top________|e|
-! |  |a|___________________|a|  !   | /                | B = |  |                \ |     |a|                  |a|
-! |  |d|  bottom           |d|  !   | \_____bottom____ |     |  | _____bottom____/ |     |d|_____bottom_______|d|
-! |  |1|  B = (0,0,-Bz)    |2|  !   |  __bottom_gate__ |        |  __bottom_gate__ |     |1|  _bottom__gate_  |2|
-! |  |_|___________________|_|  !   |__________________|        |__________________|     |_|                  |_|
-! *--------------> X            !
+!    (unfolded view)
+! Y   ________________________
+! ^  |l|  top              |l|
+! |  |e|  B = (0,0,Bz)     |e|
+! |  |a|___________________|a|
+! |  |d|  bottom           |d|
+! |  |1|  B = (0,0,-Bz)    |2|
+! |  |_|___________________|_|
+! *--------------> X
 !
 ! Coupling between layers is taken into account with Bilayer class, transport is
 ! calculated using Bubel
@@ -33,13 +33,26 @@ program main
   doubleprecision :: Bau                        ! in au
   doubleprecision :: Vgt, Vgb, E0t, E0b, nt, nb ! result from Bilayer
   doubleprecision :: Ef                         ! Fermi energy for calculations
-  doubleprecision :: T                          ! Transmission
+  integer, parameter :: numLeads = 4
+  doubleprecision, dimension(numLeads, numLeads) :: T ! Transmission matrix
   integer         :: nx = 90                    ! numbers of atoms / 2 in x direction
+  ! integer         :: nx = 20                    ! numbers of atoms / 2 in x direction
                                                 ! results in about 196 nm
-  integer         :: ny = 120                   ! ~numbers of atoms / 2 in y direction (keep even)
+  integer         :: ny = 122                    ! ~numbers of atoms / 2 in y direction (keep even)
+  ! integer         :: ny = 40                    ! ~numbers of atoms / 2 in y direction (keep even)
                                                 ! results in about 170 nm
+  integer         :: from = 1, to = 1           ! lead indexes for writing transmissions to a file
+  integer :: n
+  integer, allocatable :: seed(:)
 
 !!!!!!!!!!!!!!!!!!!!!!!! main function !!!!!!!!!!!!!!!!!!!!!!!
+
+  call random_seed(size = n)
+  print*, n
+  allocate(seed(n))
+  seed = 12345
+  call random_seed(put = seed)
+
   call parseArguments()
   nx = nx * (16 / sf)
   ny = ny * (16 / sf) + 1
@@ -55,18 +68,27 @@ program main
     print*,"========================================"
     print*,"Calculating transport at Ef = ",Ef," eV"
     print*,"========================================"
-    T = solveTransport(qt, Ef)
+    T = solveTransportMultilead(qt, Ef, numLeads)
+    print *, T
     if (save_densities) then
       call calculateElectronDensity(qt)
-      call saveDensities(qt)
     endif
 
-    ! Write to file
+    ! Write single T (lead 1) to file
     open(unit=101, file=trim(results_dir)//"/single_T.dat")
     write(101,"(A)") "Ef[au],T[-],E0t[au],E0b[au],Vgt[au],Vgb[au],nt[au],nb[au]"
     write(101,"(g0,',',g0,',',g0,',',g0,',',g0,',',g0,',',g0,',',g0)") &
-      Ef * eV2au, T, E0t, E0b, Vgt, Vgb, nt, nb
+      Ef * eV2au, sum(qt%Tn(:)), E0t, E0b, Vgt, Vgb, nt, nb
+    close(101)
 
+    ! Write T matrix to file
+    open(unit=101, file=trim(results_dir)//"/Transmissions.csv")
+    write(101, "(A, I)") "to, from, Transmission, numLeads= ", numLeads
+    do from = 1, numLeads
+      do to = 1, numLeads
+        write(101, "(I,',',I,',',g0)") to, from, T(to, from)
+      enddo
+    enddo
     close(101)
 
     if (run_energyScan) then
@@ -77,15 +99,8 @@ program main
       call performEnergyScan(qt, connect)
     endif
 
-    print*,"Calculation complete!"
-  endif
 
-  if (plot_results) then
-    print*,""
-    print*,"========================================"
-    print*,"Generating plots..."
-    print*,"========================================"
-    call generatePlots()
+    print*,"Calculation complete!"
   endif
 
 contains
@@ -123,6 +138,10 @@ contains
     doubleprecision :: y_min      = 0.0D0, y_max = 0.0D0
     type(c_ptr)     :: bilayer
 
+    doubleprecision :: yLeadWidth = 0! width of lead
+    doubleprecision :: cellSize = 0! width of lead
+    doubleprecision :: xLenCut = 0! how much does lead stand out
+
 ! --------------------------------------------------------------------------------------------------
     vecs_armchair = vecs_armchair * sf * geometric_unit2au
     atoms_armchair = atoms_armchair * sf * geometric_unit2au
@@ -133,10 +152,20 @@ contains
     pos_max(1) = pos_max(1) - 2 * (ny / 2) * vecs_armchair(1,2)
     pos_max(2) = pos_max(2) + 2 * pos_offset_armchair(2)
     pos_min = pos_offset_armchair * 0.5 + 0.001 ! 0.001 is to ommit numerical errors
+
+    ! settup of Lead width
+    yLeadWidth = (pos_max(2) - pos_min(2)) * 0.5 * 0.3 ! 0.5 -> 2 leads on one side, each takes 0.4 of half width
+    cellSize = 3 * carbon_carbon_dist * nm2au * sf ! lead must be multiple of size to make good edges of cutss
+    yLeadWidth = cellSize * (int(yLeadWidth / cellSize) + 1) ! round up
+    xLenCut = (pos_max(1) - pos_min(1)) * 0.05
+
     x_min = atoms_armchair(1,1)
     x_max = atoms_armchair(1,1)
     y_min = atoms_armchair(1,2)
     y_max = atoms_armchair(1,2)
+
+    print*, "pos_max ", pos_max / nm2au
+    print*, "pos_min ", pos_min / nm2au
 
     !------------------------------------------ Bilayer --------------------------------------------
     bilayer = Bilayer_constructor_default()
@@ -153,7 +182,7 @@ contains
 
     !---------------------------------------- Lattice ----------------------------------------------
     call qt%init_system()
-    QSYS_DEBUG_LEVEL = 1
+    QSYS_DEBUG_LEVEL = 0
     QSYS_FORCE_SCHUR_DECOMPOSITION  = .false. ! don't use schur method so its quicker
 
     ! Generate atoms positions
@@ -168,12 +197,7 @@ contains
           ! works only with armchair
           atom_pos(1) = atom_pos(1) - 2 * (j / 2) * vecs_armchair(1,2) ! shift "rows" to make flake rectangular
 
-          if (checkShape(atom_pos, pos_min, pos_max)) then
-          ! if (atom_pos(1) > pos_min(1) .and. &
-          !     atom_pos(2) > pos_min(2) .and. &
-          !     atom_pos(1) < pos_max(1) .and. &
-          !     atom_pos(2) < pos_max(2) &
-          !     )then
+          if (checkShape(atom_pos, pos_min, pos_max, yLeadWidth, xLenCut)) then
 
             x_max = max(x_max, atom_pos(1))
             x_min = min(x_min, atom_pos(1))
@@ -190,11 +214,11 @@ contains
     middle_x = 0.5 * (x_min + x_max)
     middle_y = 0.5 * (y_min + y_max)
 
-    ! yBoundLower = middle_y - (y_max - y_min) * 0.15D0 * 0.5
-    ! yBoundUpper = middle_y + (y_max - y_min) * 0.15D0 * 0.5
+    yBoundLower = middle_y - (y_max - y_min) * 0.03D0 * 0.5
+    yBoundUpper = middle_y + (y_max - y_min) * 0.03D0 * 0.5
 
-    yBoundLower = middle_y
-    yBoundUpper = middle_y
+    ! yBoundLower = middle_y
+    ! yBoundUpper = middle_y
 
     write(*, "(A,f10.5,A)"), "middle_x    ", middle_x / nm2au, " nm"
     write(*, "(A,f10.5,A)"), "middle_y    ", middle_y / nm2au, " nm"
@@ -215,23 +239,28 @@ contains
 
     call qt%qsystem%make_lattice(qt%qnnbparam, c_simple=connect)
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !----------------------------------------- Leads -----------------------------------------------
 
-    ! call addYInvLeads(y_min, y_max, (x_max - x_min) * 1.1 * 0.5, vecs_armchair)
+    ! S
+    ! call addXInvLeads(x_min, x_max, middle_y, yLeadWidth * 1.05 , vecs_armchair)
+    ! call addXInvDiagLeads(x_min, x_max, y_min, y_max, yLeadWidth * 1.05 , vecs_armchair)
 
-    call addXInvLeads(x_min, x_max, (y_max - y_min) * 1.1, vecs_armchair)
-    ! call addYInvLeads(y_min, y_max, (x_max - x_min) * 1.1, vecs_armchair)
+    ! H
+    ! call addXInvLeads(x_min, x_max, y_max - yLeadWidth/2, yLeadWidth * 1.05 , vecs_armchair)
+    ! call addXInvLeads(x_min, x_max, y_min + yLeadWidth/2, yLeadWidth * 1.05, vecs_armchair)
 
-    write(*,"(A,f8.5,A)") "nt  ", nt / inv_cmsq2au / 1e11, " 10^11 1/m^2"
-    write(*,"(A,f8.5,A)") "nb  ", nb / inv_cmsq2au / 1e11, " 10^11/m^2"
+    ! I
+    call addXInvLeads(pos_min(1) + xLenCut, pos_max(1) - xLenCut, middle_y, yLeadWidth * 1.05, vecs_armchair)
+    call addXInvUpDownLeads(x_min, x_max, y_min, y_max, yLeadWidth * 1.05, vecs_armchair)
+
+    write(*,"(A,f8.5,A)") "nt  ", nt / inv_cmsq2au / 1e11, " 10^11 m^-2"
+    write(*,"(A,f8.5,A)") "nb  ", nb / inv_cmsq2au / 1e11, " 10^11 m^-2"
     write(*,"(A,f8.5,A)") "Vgt ", Vgt / eV2au, " eV"
     write(*,"(A,f8.5,A)") "Vgb ", Vgb / eV2au, " eV"
     write(*,"(A,f8.5,A)") "ot  ", (- E0t - Vgt) / eV2au, " eV"
     write(*,"(A,f8.5,A)") "ob  ", (- E0b - Vgb) / eV2au, " eV"
     write(*,"(A,f8.5,A)") "E0t ", E0t / eV2au, " eV"
     write(*,"(A,f8.5,A)") "E0b ", E0b / eV2au, " eV"
-    ! print*, " nt ", nt, " 1/nm^2"
-    ! print*, " nb ", nb, " 1/nm^2"
 
   end subroutine
 ! --------------------------------------------------------------------------------------------------
@@ -288,7 +317,7 @@ contains
 ! --------------------------------------------------------------------------------------------------
 ! Add 2 leads on X sides, x invariant?
 ! --------------------------------------------------------------------------------------------------
-  subroutine addXInvLeads(x_min, x_max, leadLength, vecs_armchair)
+  subroutine addXInvLeads(x_min, x_max, yLeadMiddle, yLeadWidth, vecs_armchair)
     use modscatter
     use modunits
     use modshape
@@ -296,7 +325,8 @@ contains
 
     type(qshape) :: rect_shape
     doubleprecision :: lead_translation(2) !
-    doubleprecision, intent(in) :: x_min, x_max, leadLength
+    doubleprecision, intent(in) :: x_min, x_max
+    doubleprecision, intent(in) :: yLeadMiddle, yLeadWidth
     doubleprecision, dimension(2,2), intent(in) :: vecs_armchair
 
 ! --------------------------------------------------------------------------------------------------
@@ -307,8 +337,8 @@ contains
     call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
                               x_min - 0.1, &
                               x_min + lead_translation(1) - 0.1, &
-                              middle_y - 0.1 - leadLength / 2, &
-                              middle_y + 0.1 + leadLength / 2)
+                              yLeadMiddle - 0.1 - yLeadWidth / 2, &
+                              yLeadMiddle + 0.1 + yLeadWidth / 2)
 
     call qt%add_lead(rect_shape, (/lead_translation(1), lead_translation(2), 0.0D0 /))
 
@@ -322,40 +352,183 @@ contains
     call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
                               x_max - lead_translation(1) + 0.1, &
                               x_max + 0.1, &
-                              middle_y - 0.1 - leadLength / 2, &
-                              middle_y + 0.1 + leadLength / 2)
+                              yLeadMiddle - 0.1 - yLeadWidth / 2, &
+                              yLeadMiddle + 0.1 + yLeadWidth / 2)
 
     call qt%add_lead(rect_shape, (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
 
   end subroutine
 ! --------------------------------------------------------------------------------------------------
 
+  subroutine addXInvDiagLeads(x_min, x_max, y_min, y_max, yLeadWidth, vecs_armchair)
+    use modscatter
+    use modunits
+    use modshape
+    implicit none
+
+    type(qshape) :: rect_shape
+    doubleprecision :: lead_translation(2) !
+    doubleprecision, intent(in) :: x_min, x_max, y_min, y_max
+    doubleprecision, intent(in) :: yLeadWidth
+    doubleprecision, dimension(2,2), intent(in) :: vecs_armchair
+
+! --------------------------------------------------------------------------------------------------
+
+    lead_translation = (/vecs_armchair(1,1), 0.0D0/)
+    print*, "lead_translation: ", lead_translation
+    ! First lead (lower X) lower Y
+    call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
+                              x_min - 0.1, &
+                              x_min + lead_translation(1) - 0.1, &
+                              y_min - 0.1 , &
+                              y_min + 0.1 + yLeadWidth)
+
+    call qt%add_lead(rect_shape, (/lead_translation(1), lead_translation(2), 0.0D0 /))
+
+    ! Second lead (higher X) higher Y
+    call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
+                              x_max - lead_translation(1) + 0.1, &
+                              x_max + 0.1, &
+                              y_max - 0.1 - yLeadWidth, &
+                              y_max + 0.1)
+
+    call qt%add_lead(rect_shape, (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
+
+  end subroutine
+
+
+  subroutine addXInvUpDownLeads(x_min, x_max, y_min, y_max, yLeadWidth, vecs_armchair)
+    use modscatter
+    use modunits
+    use modshape
+    implicit none
+
+    type(qshape) :: rect_shape
+    doubleprecision :: lead_translation(2) !
+    doubleprecision, intent(in) :: x_min, x_max, y_min, y_max
+    doubleprecision, intent(in) :: yLeadWidth
+    doubleprecision, dimension(2,2), intent(in) :: vecs_armchair
+
+! --------------------------------------------------------------------------------------------------
+
+    lead_translation = (/vecs_armchair(1,1), 0.0D0/)
+    print*, "lead_translation: ", lead_translation
+    ! First lead (lower X)
+    call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
+                              x_min - 0.1, &
+                              x_min + lead_translation(1) - 0.1, &
+                              y_min - 0.1 , &
+                              y_max + 0.1)
+
+    call qt%add_lead(rect_shape, (/lead_translation(1), lead_translation(2), 0.0D0 /))
+
+    ! Second lead (higher X)
+    call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
+                              x_max - lead_translation(1) + 0.1, &
+                              x_max + 0.1, &
+                              y_min - 0.1, &
+                              y_max + 0.1)
+
+    call qt%add_lead(rect_shape, (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
+
+  end subroutine
+
 
 ! --------------------------------------------------------------------------------------------------
 ! Check if atom position is within bounds
 ! --------------------------------------------------------------------------------------------------
-  logical function checkShape(atom_pos, pos_min, pos_max)
+  logical function checkShape(atom_pos, pos_min, pos_max, yLeadWidth, xLenCut)
     implicit none
 
     doubleprecision, intent(in) :: atom_pos(3)
     doubleprecision, intent(in) :: pos_min(2)
     doubleprecision, intent(in) :: pos_max(2)
+    doubleprecision, intent(in) :: yLeadWidth
+    doubleprecision, intent(in) :: xLenCut
 
+    doubleprecision :: middle_y
     doubleprecision :: range(2)
 
     range = pos_max - pos_min
+    middle_y = (pos_max(2) + pos_min(2)) / 2
+
     ! contacts width is lover then whole width on Y
 
+    !    ______
+    !  _|      |_
+    ! |          |
+    ! |_        _|
+    !   |______|
+
+    ! checkShape = &
+    !   (atom_pos(2) > pos_min(2) + range(2) * 0.1 .and. &
+    !    atom_pos(2) < pos_max(2) - range(2) * 0.1 .and. &
+    !    atom_pos(1) > pos_min(1) .and. &
+    !    atom_pos(1) < pos_max(1)) &
+    !   .or. &
+    !   (atom_pos(1) > pos_min(1) + range(1) * 0.05 .and. &
+    !    atom_pos(1) < pos_max(1) - range(1) * 0.05 .and. &
+    !    atom_pos(2) > pos_min(2) .and. &
+    !    atom_pos(2) < pos_max(2))
+
+    !  ________________
+    ! |_              _|
+    !  _|            |_
+    ! |________________|
+
+    ! checkShape = &
+    !   ((atom_pos(1) > pos_min(1)) .and. (atom_pos(1) < pos_max(1)) .and. & ! outer x layer
+    !    (atom_pos(2) > pos_min(2)) .and. (atom_pos(2) < pos_max(2))) &      ! outer y layer
+    !   .and. &
+    !   (.not.(((atom_pos(1) < pos_min(1) + xLenCut) .or. &    ! left or cut x
+    !           (atom_pos(1) > pos_max(1) - xLenCut)) .and. &  ! right cut x
+    !          (atom_pos(2) > pos_min(2) + yLeadWidth) .and. & ! down side of middle section y
+    !          (atom_pos(2) < pos_max(2) - yLeadWidth)))       ! uper side of middle section y
+
+
+
+    !   |     1      |
+    !    ______________
+    !   |              | 3
+    !   |             _|
+    !  _|            |_
+    ! |_ ---fold----  _| 2
+    !  _|            |
+    ! |              |
+    ! |______________|   4
+
+    ! checkShape = &
+    !   ((atom_pos(1) > pos_min(1) + xLenCut) .and. (atom_pos(1) < pos_max(1) - xLenCut) .and. &
+    !    (atom_pos(2) > pos_min(2)) .and. (atom_pos(2) < pos_max(2))) .or. & ! 1
+    !   ((atom_pos(1) > pos_min(1)) .and. (atom_pos(1) < pos_max(1)) .and. &
+    !    (atom_pos(2) > middle_y - yLeadWidth / 4) .and. (atom_pos(2) < middle_y + yLeadWidth / 4)) .or. & ! 2
+    !   ((atom_pos(1) > pos_min(1)) .and. (atom_pos(1) < pos_max(1) - xLenCut) .and. &
+    !    (atom_pos(2) > pos_min(2)) .and. (atom_pos(2) < pos_min(2) + yLeadWidth)) .or. & ! 4
+    !   ((atom_pos(1) > pos_min(1) + xLenCut) .and. (atom_pos(1) < pos_max(1)) .and. &
+    !    (atom_pos(2) > pos_max(2) - yLeadWidth) .and. (atom_pos(2) < pos_max(2))) ! 3
+
+
+
+    !     |     1     |
+    !  ___________________
+    ! |                   | 3
+    ! |___             ___|
+    !    _|           |_
+    !   |_ ---fold---- _| 2
+    !  ___|           |___
+    ! |                   |
+    ! |___________________|   4
+
     checkShape = &
-      (atom_pos(2) > pos_min(2) + range(2) * 0.1 .and. &
-       atom_pos(2) < pos_max(2) - range(2) * 0.1 .and. &
-       atom_pos(1) > pos_min(1) .and. &
-       atom_pos(1) < pos_max(1)) &
-      .or. &
-      (atom_pos(1) > pos_min(1) + range(1) * 0.05 .and. &
-       atom_pos(1) < pos_max(1) - range(1) * 0.05 .and. &
-       atom_pos(2) > pos_min(1) .and. &
-       atom_pos(2) < pos_max(1))
+      ((atom_pos(1) > pos_min(1) + 2 * xLenCut) .and. (atom_pos(1) < pos_max(1) - 2 * xLenCut) .and. &
+       (atom_pos(2) > pos_min(2)) .and. (atom_pos(2) < pos_max(2))) .or. & ! 1
+      ((atom_pos(1) > pos_min(1) + xLenCut) .and. (atom_pos(1) < pos_max(1) - xLenCut) .and. &
+       (atom_pos(2) > middle_y - yLeadWidth / 4) .and. (atom_pos(2) < middle_y + yLeadWidth / 4)) .or. & ! 2
+      ((atom_pos(1) > pos_min(1)) .and. (atom_pos(1) < pos_max(1)) .and. &
+       (atom_pos(2) > pos_min(2)) .and. (atom_pos(2) < pos_min(2) + yLeadWidth)) .or. & ! 4
+      ((atom_pos(1) > pos_min(1)) .and. (atom_pos(1) < pos_max(1)) .and. &
+       (atom_pos(2) > pos_max(2) - yLeadWidth) .and. (atom_pos(2) < pos_max(2))) ! 3
+
 
   end function
 
@@ -380,6 +553,7 @@ contains
     doubleprecision :: Vg
     doubleprecision :: E0
     doubleprecision :: y
+    doubleprecision :: r
 ! --------------------------------------------------------------------------------------------------
     if (.false.) atoms(0)%flag = atoms(0)%flag ! supress unused variable warning
     if (.not. (atomA%flag == atomB%flag)) then
@@ -394,7 +568,7 @@ contains
       if (y < middle_y) B = -Bau ! bottom
 
       ! Peierls phase
-      phi = 0.5 * B * (yB + yA) * (xB - xA) ! y x already in au
+      phi = - 0.5 * B * (yB + yA) * (xB - xA) ! y x already in au
       coupling_val = t0 * exp(II*phi)
     else
       connect = .true.
@@ -404,8 +578,12 @@ contains
       yB = atomB%atom_pos(2)
       y = (yB + yA) * 0.5
       Vg = linear(y, Vgt, Vgb, yBoundUpper, yBoundLower)
+      ! Vg = Vgb
       E0 = linear(y, E0t, E0b, yBoundUpper, yBoundLower)
+      ! E0 = E0b
       coupling_val = - E0 - Vg
+      call random_number(r)
+      coupling_val = coupling_val * (1D0 + r / 10D0)
     endif
   end function
 ! --------------------------------------------------------------------------------------------------
