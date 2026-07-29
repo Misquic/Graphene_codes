@@ -25,5 +25,8 @@ args = {
     "saveCurrents" : 0,                                        # saves and plots currents
     "leadInfo"     : "\"currentLeadFrom currentLeadTo voltageLeadHigh voltageLeadLow\"", \
                                                                # leadInfo for resistances postprocessing
-    "resistance"   : 0,
+    # "resistance"   : 0,
+    "grid"         : 1,                                        # if 1 then plots imShow with grid
+    "plotCurrents" : 0,                                        # if 1 then plots currents for points described by division with numB and numVb
+    "seed"         : 12345                                     # seed for simulations
 }

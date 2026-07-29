@@ -16,6 +16,7 @@ module FortUtils
   logical :: save_bands = .false.
   integer :: sf = 8
   logical :: save_currents = .false.
+  integer, allocatable :: seed(:)
 
 contains
 
@@ -131,7 +132,7 @@ contains
       if (help_buffer == "help") then
         print*, "usage: ./Transport2D <resultsDir> <B in T> <Vb> <Vt> &
                  <save_system> <run_transport> <run_energyScan> <plot_results> &
-                 <save_densities> <save_bands> <sf> <save_currents>"
+                 <save_densities> <save_bands> <sf> <save_currents> <seed>"
         call exit(0)
       else
         results_dir = trim(arg_buffer)
@@ -149,10 +150,11 @@ contains
     save_bands = parseBoolArg(save_bands)
     sf = parseIntArg(sf)
     save_currents = parseBoolArg(save_currents)
+    seed(1) = parseIntArg(seed(1))
 
     print*, "usage: ./Transport2D <resultsDir> <B in T> <Vb> <Vt> &
              <save_system> <run_transport> <run_energyScan> <plot_results> &
-             <save_densities> <save_bands> <sf> <save_currents>"
+             <save_densities> <save_bands> <sf> <save_currents> <seed>"
     print*, ""
     print*, "Parsed Arguments"
     print*, ""
@@ -168,6 +170,7 @@ contains
     print*, "save_bands: ", save_bands
     print*, "sf: ", sf
     print*, "save_currents: ", save_currents
+    print*, "seed: ", seed
     print*, ""
     print*, ""
     print*, ""

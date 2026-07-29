@@ -73,7 +73,7 @@ for file, ax0, ax1 in zip(files, axes[0,:], axes[1,:]):
     gridv = gridv / gridr
 
     # wektory pradu (co 4-ty zeby strzalki nie za gesto, mozna dobrac do rysunku)
-    skip = 8
+    skip = 16
     ax0.quiver(xi[1::skip],
                yi[1::skip],
                gridu[1::skip,
@@ -84,10 +84,10 @@ for file, ax0, ax1 in zip(files, axes[0,:], axes[1,:]):
                scale = 30)
     ax0.set_title(getNameOfFile(file).replace("current_", "lead "))
     # mapa gestosci
-    im = ax1.scatter(data[::skip,0,] / nm2au,
-                     data[::skip,1] / nm2au,
-                     c=current[::skip],
-                     s=skip*1.2*(sf/8),
+    im = ax1.scatter(data[:,0,] / nm2au,
+                     data[:,1] / nm2au,
+                     c=current[:],
+                     s=1.2*(sf/8),
                      alpha = 1,
                      marker="H",
                      edgecolors=None,

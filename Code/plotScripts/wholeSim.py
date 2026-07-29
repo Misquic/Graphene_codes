@@ -51,6 +51,7 @@ def prepareCommandsAndDirs()-> list[str]:
     saveBands     = 0
     sf            = args["sf"]
     saveCurrents  = args["saveCurrents"]
+    seed          = args["seed"]
 
     if (args["dB"] <= 0):
         BTab = createTab(args["BMin"], args["BMax"], args["numB"])
@@ -114,7 +115,7 @@ def prepareCommandsAndDirs()-> list[str]:
                 idx += 1
                 if (idx % 100 == 0):
                     progressBar(idx, 0, maxIdx, timeStart, end = '\r')
-                resultsDir = f"{allResultsDir}dirs/B_{B}_Vb_{Vb}_Vt_{Vt}/"
+                resultsDir = f"{allResultsDir}dirs/{createDirName(B, Vb, Vt)}/"
                 if os.path.isdir(resultsDir) and os.path.exists(resultsDir):
                     execCommand(f"rm -r {resultsDir}") # clear resultsDir
                 if not os.path.isdir(resultsDir):
@@ -122,12 +123,12 @@ def prepareCommandsAndDirs()-> list[str]:
 
                 # "usage: ./Transport2D <resultsDir> <B in T> <Vb> <Vt> &
                 #  <save_system> <run_transport> <plot_results> &
-                #  <save_densities> <save_bands> <sf> <saveCurrents>"
+                #  <save_densities> <save_bands> <sf> <saveCurrents> <seed>"
                 commandArgs = [ resultsDir,
                                 str(B), str(Vb), str(Vt),
                                 str(0), str(runTransport), str(runEnergyScan),
                                 str(plotResults), str(saveDensities), str(saveBands), str(sf),
-                                str(saveCurrents)]
+                                str(saveCurrents), str(seed)]
 
                 command = f"{args["Executable"]} "
                 for a in commandArgs:
@@ -369,7 +370,7 @@ def processFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, 
         nb_2D[i, j]  = nb
 
     # process resistances
-    execCommand(f"$SCRIPTS/resistances/resistances {args["allResultsDir"]} {args["leadInfo"]}")
+    execCommand(f"$PLOT_SCRIPTS/resistances/resistances {args["allResultsDir"]} {args["leadInfo"]}")
     Rdata = read_csv(args["allResultsDir"] + "R.dat", delimiter = ',')
 
     for dirName, R in zip(Rdata[:, 0], Rdata[:, 1]):
@@ -398,6 +399,31 @@ def readFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.
 
     return T, Vgt, Vgb, E0t, E0b, nt, nb, R, Vb, B
 
+def createDirName(B: float,
+                  Vb: float,
+                  plotForVt: float) -> str:
+    return f"B_{B}_Vb_{Vb}_Vt_{plotForVt}"
+
+def plotCurrents(Vb: np.ndArray,
+                 B: np.ndarray,
+                 plotForVt: float):
+    newB = B[:: len(B) // min(len(B), args["numB"] - 1 )]
+    newVb = Vb[:: len(Vb) // min(len(Vb), args["numVb"] - 1)]
+
+    cmds = []
+    for b in newB:
+        for vb in newVb:
+            dir = createDirName(b, vb, plotForVt)
+            cmd = f"python $PLOT_SCRIPTS/plot_currents.py " \
+                  f"{os.path.join(args["allResultsDir"], f"dirs/{dir}")}/ " \
+                  f"{os.path.join(args["allResultsDir"], "currents")}"
+            print(cmd)
+            cmds.append(cmd)
+
+    execCommand(f"mkdir {os.path.join(args["allResultsDir"], "currents")}")
+    runCommands(cmds, args["maxParallel"])
+
+
 def plotAll(plotForVt : float) -> None:
     if (not os.path.exists(args["allResultsDir"] + "T.csv") or \
         not os.path.exists(args["allResultsDir"] + "Vgt.csv") or \
@@ -422,20 +448,28 @@ def plotAll(plotForVt : float) -> None:
         E0b,  _, _ = cutT(E0b,  Vb, B)
         nt,   _, _ = cutT(nt,   Vb, B)
         R,    _, _ = cutT(R,   Vb, B)
-        nb,  Vb, B = cutT(nb,  Vb, B)
+        nb,  Vb, B =  (nb,  Vb, B)
+        print("cut:")
+
+    print(B)
+    print(Vb)
 
     print("Plotting")
-    plotConductance(T_2D, Vb, B, plotForVt)
-    plotResistance(R, Vb, B, plotForVt)
-    plotVgtVgb(Vgt, Vgb, Vb, B, plotForVt)
-    plotE0tE0b(E0t, E0b, Vb, B, plotForVt)
-    plotDensities(nt, nb, Vb, B, plotForVt)
-    plotdGdV(T_2D, Vb, B, plotForVt)
-    plotdGdB(T_2D, Vb, B, plotForVt)
-    E0t_unique = np.unique(E0t)
-    E0b_unique = np.unique(E0b)
-    if (len(E0t_unique) > 1) or (len(E0b_unique) > 1):
-        plotOnsites(E0t, E0b, Vgt, Vgb, Vb, B, plotForVt)
+    if args["plotAll"]:
+        plotConductance(T_2D, Vb, B, plotForVt)
+        plotResistance(R, Vb, B, plotForVt)
+        plotVgtVgb(Vgt, Vgb, Vb, B, plotForVt)
+        plotE0tE0b(E0t, E0b, Vb, B, plotForVt)
+        plotDensities(nt, nb, Vb, B, plotForVt)
+        plotdGdV(T_2D, Vb, B, plotForVt)
+        plotdGdB(T_2D, Vb, B, plotForVt)
+        E0t_unique = np.unique(E0t)
+        E0b_unique = np.unique(E0b)
+        if (len(E0t_unique) > 1) or (len(E0b_unique) > 1):
+            plotOnsites(E0t, E0b, Vgt, Vgb, Vb, B, plotForVt)
+
+    if args["plotCurrents"]:
+        plotCurrents(Vb, B, plotForVt)
 
 ################################################################################
 
@@ -452,7 +486,7 @@ if __name__ == "__main__":
     if (args["runSim"] == 1) or (args["prepCmdsOnly"] == 1):
         runSim()
 
-    if (args["plotAll"] == 1):
+    if (args["plotAll"] == 1) or (args["plotCurrents"]):
         VtTab = createTab(args["VtMin"], args["VtMax"], args["numVt"])
         for Vt in VtTab:
             plotAll(Vt)

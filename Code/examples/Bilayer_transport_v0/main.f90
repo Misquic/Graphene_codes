@@ -384,7 +384,7 @@ contains
     if (.false.) atoms(0)%flag = atoms(0)%flag ! supress unused variable warning
     if (.not. (atomA%flag == atomB%flag)) then
       connect = .true.
-      t0 = (3.0D0 * eV2au) / sf
+      t0 = (-3.0D0 * eV2au) / sf
       xA = atomA%atom_pos(1)
       yA = atomA%atom_pos(2)
       xB = atomB%atom_pos(1)
@@ -394,7 +394,7 @@ contains
       if (y < middle_y) B = -Bau ! bottom
 
       ! Peierls phase
-      phi = 0.5 * B * (yB + yA) * (xB - xA) ! y x already in au
+      phi = - 0.5 * B * (yB + yA - 2 * middle_y) * (xB - xA) ! y x already in au
       coupling_val = t0 * exp(II*phi)
     else
       connect = .true.

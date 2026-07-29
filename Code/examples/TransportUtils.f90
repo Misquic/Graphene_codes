@@ -9,6 +9,7 @@ module TransportUtils
   doubleprecision,parameter :: cm2au       = 1e-2 * 1e9 * nm2au
   doubleprecision,parameter :: inv_cmsq2au = 1. / cm2au / cm2au
   doubleprecision,parameter :: one_over_sqrt_3 = 1.0D0 / sqrt(3.0)
+  doubleprecision,parameter :: M_PI        = 3.1415926535898
 
 abstract interface
   logical function func_simple(atomA,atomB,coupling_val,atoms)
@@ -23,9 +24,8 @@ end interface
 contains
 
 
-
 ! --------------------------------------------------------------------------------------------------
-! Calculate linear gradiend between upper and down side
+! Calculate linear gradient between upper and down side
 ! --------------------------------------------------------------------------------------------------
   doubleprecision function linear(y, topValue, bottomValue, yBoundUpper, yBoundLower)
     implicit none
@@ -38,7 +38,11 @@ contains
     doubleprecision :: yRange, dy, VRange
 
 ! --------------------------------------------------------------------------------------------------
-    if (y < yBoundLower) then
+    if (yBoundLower > yBoundUpper) then
+      stop 1
+    endif
+
+    if (y <= yBoundLower) then
       linear = bottomValue
     else if (y > yBoundUpper) then
       linear = topValue
@@ -50,6 +54,37 @@ contains
     endif
 
   end function
+! --------------------------------------------------------------------------------------------------
+
+
+! --------------------------------------------------------------------------------------------------
+! Calculate cosine gradient between upper and down side
+! --------------------------------------------------------------------------------------------------
+  doubleprecision function cosineGradient(y, val, yBoundUpper, yBoundLower)
+    implicit none
+
+    doubleprecision, intent(in) :: y
+    doubleprecision, intent(in) :: val
+    doubleprecision, intent(in) :: yBoundUpper
+    doubleprecision, intent(in) :: yBoundLower
+    doubleprecision :: yRange, dy
+
+! --------------------------------------------------------------------------------------------------
+    if (yBoundLower > yBoundUpper) then
+      stop 1
+    endif
+
+    if (y <= yBoundLower) then
+      cosineGradient = val
+    else if (y > yBoundUpper) then
+      cosineGradient = -val
+    else
+      yRange = yBoundUpper - yBoundLower
+      dy = y - yBoundLower
+      cosineGradient = cos(dy / yRange * M_PI) * val
+    endif
+
+  end function cosineGradient
 ! --------------------------------------------------------------------------------------------------
 
 
@@ -118,8 +153,8 @@ contains
       call execute_command_line("python plot_currents.py "//trim(results_dir))
     endif
 
-    do j = 1 , numLeads ! from?
-      do i = 1 , numLeads ! to?
+    do j = 1 , numLeads ! from
+      do i = 1 , numLeads ! to
         transmissions(i, j) = sum(abs(qt%smatrix(i,j)%Tnm)**2)
         print"(A,i3,A,i3,A,f10.6)","T(",i,",",j,")=", transmissions(i, j)
       enddo

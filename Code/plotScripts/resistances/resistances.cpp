@@ -154,7 +154,7 @@ static inline bool convertAndCheckNumber(int& number, const char* const start_p,
 
 }
 
-static void remapLeads(int& to, int& from, const leadInfoS& leadInfo, const leadInfoS& leadDesired)
+static void remapLeads(int& to, int& from, const LeadInfoS& leadInfo, const LeadInfoS& leadDesired)
 {
   if (to == leadInfo.currentLeadFrom) to = leadDesired.currentLeadFrom;
   else if (to == leadInfo.currentLeadTo) to = leadDesired.currentLeadTo;
@@ -206,9 +206,21 @@ double calculateR(double* const T)
         T[index4(2, 0)] + T[index4(2, 1)] + T[index4(2, 3)]
   };
 
+  printMat4D(T);
+  printMatD(G);
+
+  // convert T to G
+  for (int i = 0; i < 3; i++)
+  {
+    for (int j = 0; j < 3; j++)
+    {
+      G[index3(i, j)] *= 2;
+    }
+  }
+
   double R[9];
   inverseMatrix(G, R);
-  // printMatD(R);
+  printMatD(R);
 
   // R_kl,mn = (V_m - V_n) / I_k = R_mk - R_nk
   // V_i = sum_{j=1, j!=i}^N R_ij * Ij
@@ -223,11 +235,23 @@ double calculateR(double* const T)
 void printMat(const double* const mat)
 {
   std::printf("[ % 5.3f, % 5.3f, % 5.3f ]\n"\
-              "[ % 5.3f, % 5.3f, % 5.3f ]\n"\
+              "| % 5.3f, % 5.3f, % 5.3f |\n"\
               "[ % 5.3f, % 5.3f, % 5.3f ]\n\n",
                mat[0 * 3 + 0], mat[0 * 3 + 1], mat[0 * 3 + 2],
                mat[1 * 3 + 0], mat[1 * 3 + 1], mat[1 * 3 + 2],
                mat[2 * 3 + 0], mat[2 * 3 + 1], mat[2 * 3 + 2]);
+}
+
+void printMat4(const double* const mat)
+{
+  std::printf("[ % 5.3f, % 5.3f, % 5.3f, % 5.3f ]\n"\
+              "| % 5.3f, % 5.3f, % 5.3f, % 5.3f |\n"\
+              "| % 5.3f, % 5.3f, % 5.3f, % 5.3f |\n"\
+              "[ % 5.3f, % 5.3f, % 5.3f, % 5.3f ]\n\n",
+               mat[index4(0, 0)], mat[index4(0, 1)], mat[index4(0, 2)], mat[index4(0, 3)],
+               mat[index4(1, 0)], mat[index4(1, 1)], mat[index4(1, 2)], mat[index4(1, 3)],
+               mat[index4(2, 0)], mat[index4(2, 1)], mat[index4(2, 2)], mat[index4(2, 3)],
+               mat[index4(3, 0)], mat[index4(3, 1)], mat[index4(3, 2)], mat[index4(3, 3)]);
 }
 
 void inverseMatrix(const double mat[9], double invMat[9])
@@ -237,16 +261,16 @@ void inverseMatrix(const double mat[9], double invMat[9])
   //  d e f
   //  g h i
   // }
-  // mat = [a d g b e h c f i]
-  const double& a = mat[0 * 3 + 0];
-  const double& b = mat[0 * 3 + 1];
-  const double& c = mat[0 * 3 + 2];
-  const double& d = mat[1 * 3 + 0];
-  const double& e = mat[1 * 3 + 1];
-  const double& f = mat[1 * 3 + 2];
-  const double& g = mat[2 * 3 + 0];
-  const double& h = mat[2 * 3 + 1];
-  const double& i = mat[2 * 3 + 2];
+  // mat = [a b c d e f g h i]
+  const double& a = mat[index3(0, 0)];
+  const double& b = mat[index3(0, 1)];
+  const double& c = mat[index3(0, 2)];
+  const double& d = mat[index3(1, 0)];
+  const double& e = mat[index3(1, 1)];
+  const double& f = mat[index3(1, 2)];
+  const double& g = mat[index3(2, 0)];
+  const double& h = mat[index3(2, 1)];
+  const double& i = mat[index3(2, 2)];
 
   double det = a*e*i +
                d*h*c +
@@ -255,7 +279,7 @@ void inverseMatrix(const double mat[9], double invMat[9])
                d*b*i -
                a*h*f;
 
-
+  dmsg("det: " << det);
   // double invMat[9] = {
   //    (e*i - h*f), -(b*i - h*c),  (b*f - e*c),
   //   -(d*i - g*f),  (a*i - g*c), -(a*f - d*c),
@@ -336,31 +360,13 @@ int readNumLeads(const std::filesystem::path& path)
   return numLeads;
 }
 
-inline bool operator!=(const leadInfoS& a, const leadInfoS& b)
-{
-  return !(a.currentLeadFrom == b.currentLeadFrom &&
-           a.currentLeadTo == b.currentLeadTo &&
-           a.voltageLeadHigh == b.voltageLeadHigh &&
-           a.voltageLeadLow == b.voltageLeadLow);
-}
-
 bool readMatrix(const std::filesystem::path& path,
                 double* const mat,
-                const leadInfoS& leadInfo)
+                const LeadInfoS& leadInfo,
+                bool needsRemap)
 {
   constexpr uint numLeads = 4;
   constexpr uint numElements = numLeads * numLeads;
-
-  // remapping is done to keep way of calculating of resistanced based on Datta (eradicate row and column 4)
-  constexpr leadInfoS leadDesired =
-  {
-    .currentLeadFrom = 2,
-    .currentLeadTo = 3,
-    .voltageLeadHigh = 1,
-    .voltageLeadLow = 4
-  };
-
-  const bool needsRemap = leadDesired != leadInfo;
 
   bool valid = true;
   std::ifstream file = openIFile(path, valid);
@@ -437,8 +443,12 @@ bool readMatrix(const std::filesystem::path& path,
     }
     // std::printf("to: %d, from %d, t: %f\n", to, from, t);
 
-    mat[index4(to - 1, from - 1)] = t;
+    if (valid)
+    {
+      mat[index4(to - 1, from - 1)] = t;
+    }
   }
 
+  printMat4D(mat);
   return valid;
 }

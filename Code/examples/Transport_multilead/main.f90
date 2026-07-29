@@ -17,6 +17,7 @@
 program main
   use modscatter
   use FortUtils
+  use modshape
   use TransportUtils
   use, intrinsic :: iso_c_binding
   implicit none
@@ -43,19 +44,25 @@ program main
                                                 ! results in about 170 nm
   integer         :: from = 1, to = 1           ! lead indexes for writing transmissions to a file
   integer :: n
-  integer, allocatable :: seed(:)
+  doubleprecision :: r = 0
+  ! lead storage
+  type(qshape) :: leadShapes(numLeads)
+  doubleprecision :: leadTrans(3,numLeads)
 
 !!!!!!!!!!!!!!!!!!!!!!!! main function !!!!!!!!!!!!!!!!!!!!!!!
 
   call random_seed(size = n)
-  print*, n
+  print*, "seed_size: ", n
   allocate(seed(n))
-  seed = 12345
-  call random_seed(put = seed)
 
   call parseArguments()
   nx = nx * (16 / sf)
   ny = ny * (16 / sf) + 1
+  call random_seed(put = seed)
+
+  do n = 1,100
+    call random_number(r)
+  enddo
 
   call createSystem()
   if (save_system) then
@@ -65,6 +72,7 @@ program main
   if (run_transport) then
     ! Calculate at specific Fermi energy
     Ef = 0.000001D0 ! eV
+    ! Ef = 0.00000D0 ! eV
     print*,"========================================"
     print*,"Calculating transport at Ef = ",Ef," eV"
     print*,"========================================"
@@ -137,6 +145,7 @@ contains
     doubleprecision :: x_min      = 0.0D0, x_max = 0.0D0
     doubleprecision :: y_min      = 0.0D0, y_max = 0.0D0
     type(c_ptr)     :: bilayer
+    integer         :: currentLead = 1
 
     doubleprecision :: yLeadWidth = 0! width of lead
     doubleprecision :: cellSize = 0! width of lead
@@ -184,6 +193,7 @@ contains
     call qt%init_system()
     QSYS_DEBUG_LEVEL = 0
     QSYS_FORCE_SCHUR_DECOMPOSITION  = .false. ! don't use schur method so its quicker
+    ! Try with .true.
 
     ! Generate atoms positions
     do i = 0, nx
@@ -229,16 +239,6 @@ contains
     write(*, "(A,f10.5,A)"), "y_min       ", y_min / nm2au, " nm"
     write(*, "(A,f10.5,A)"), "y_max       ", y_max / nm2au, " nm"
 
-    !---------------------------------------- Coupling ---------------------------------------------
-
-    ! Coupling between atoms, onsite energies
-    qt%qnnbparam%distance = 0.6 * sf * geometric_unit2au
-    qt%qnnbparam%NNB_FILTER = QSYS_NNB_FILTER_DISTANCE
-
-    Bau = Bz * T2au
-
-    call qt%qsystem%make_lattice(qt%qnnbparam, c_simple=connect)
-
     !----------------------------------------- Leads -----------------------------------------------
 
     ! S
@@ -250,8 +250,31 @@ contains
     ! call addXInvLeads(x_min, x_max, y_min + yLeadWidth/2, yLeadWidth * 1.05, vecs_armchair)
 
     ! I
-    call addXInvLeads(pos_min(1) + xLenCut, pos_max(1) - xLenCut, middle_y, yLeadWidth * 1.05, vecs_armchair)
-    call addXInvUpDownLeads(x_min, x_max, y_min, y_max, yLeadWidth * 1.05, vecs_armchair)
+    ! lead 1 and 2 are added (voltage)
+    call addXInvLeads(currentLead, pos_min(1) + xLenCut, pos_max(1) - xLenCut, middle_y, yLeadWidth * 1.05, vecs_armchair)
+    ! lead 3 and 4 are added (current)
+    call addXInvUpDownLeads(currentLead, x_min, x_max, y_min, y_max, vecs_armchair)
+
+    print*, "currentLead", currentLead
+    !---------------------------------------- Coupling ---------------------------------------------
+
+    ! Coupling between atoms, onsite energies
+    qt%qnnbparam%distance = 0.6 * sf * geometric_unit2au
+    qt%qnnbparam%NNB_FILTER = QSYS_NNB_FILTER_DISTANCE
+
+    Bau = Bz * T2au
+
+    call qt%qsystem%make_lattice(qt%qnnbparam, c_simple=connect)
+
+    !------------------------------------------ Leads pt 2 -----------------------------------------
+    do i = 1, numLeads
+      call qt%add_lead(leadShapes(i), leadTrans(:, i))
+      if (save_bands) then
+        call qt%leads(i)%bands(trim(results_dir)//"/bands" // str(i) // ".dat", &
+                              -M_PI / one_over_sqrt_3, +M_PI/ one_over_sqrt_3, M_PI/ one_over_sqrt_3/160.0, & !k_min, k_max, dk
+                              -3.0D0 * eV2au, 3.0D0 * eV2au) !E_min, E_max
+      endif
+    enddo
 
     write(*,"(A,f8.5,A)") "nt  ", nt / inv_cmsq2au / 1e11, " 10^11 m^-2"
     write(*,"(A,f8.5,A)") "nb  ", nb / inv_cmsq2au / 1e11, " 10^11 m^-2"
@@ -265,18 +288,58 @@ contains
   end subroutine
 ! --------------------------------------------------------------------------------------------------
 
+  subroutine leads_init()
+    use modshape
+    implicit none
+    integer :: i
+    do i = 1, 4
+      call leadShapes(i)%init(SHAPE_NONE)
+      leadTrans(:,i) = 0.0D0
+    end do
+  end subroutine leads_init
+
+
+  subroutine addLeadRect(idx, xmin, xmax, ymin, ymax, translation)
+    use modshape
+    implicit none
+    integer, intent(in) :: idx
+    doubleprecision, intent(in) :: xmin, xmax, ymin, ymax
+    doubleprecision, intent(in) :: translation(3)
+    if (idx < 1 .or. idx > 4) then
+      print *, "addLeadRect: idx out of range", idx
+      return
+    end if
+    call leadShapes(idx)%init_rect(SHAPE_RECTANGLE_XY, xmin, xmax, ymin, ymax)
+    leadTrans(:,idx) = translation
+  end subroutine addLeadRect
+
+
+  integer function isInLeads(x, y)
+    implicit none
+    doubleprecision, intent(in) :: x, y
+    doubleprecision :: vec(3)
+    integer :: i
+    isInLeads = 0
+    vec = (/ x, y, 0.0D0 /)
+    do i = 1, 4
+      if (leadShapes(i)%is_inside(vec)) then
+        isInLeads = i
+        return
+      end if
+    end do
+  end function isInLeads
 
 
 ! --------------------------------------------------------------------------------------------------
 ! Add 2 leads on Y sides, Y invariant?
 ! --------------------------------------------------------------------------------------------------
-  subroutine addYInvLeads(y_min, y_max, leadLength, vecs_armchair)
+  subroutine addYInvLeads(idx, y_min, y_max, leadLength, vecs_armchair)
     use modscatter
     use modunits
     use modshape
     implicit none
 
-    type(qshape) :: rect_shape
+    integer :: idx
     doubleprecision :: lead_translation(2) = (/ 0.0D0, 0.0D0 /)!
     doubleprecision, intent(in) :: y_min, y_max, leadLength
     doubleprecision, dimension(2,2), intent(in) :: vecs_armchair
@@ -286,44 +349,36 @@ contains
     lead_translation = (/ 0.0D0, vecs_armchair(2,2) /) * 2
     print*, "lead_translation: ", lead_translation
 
-    ! First lead (lower Y side)
-    call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
-                              middle_x - 0.1 - leadLength / 2, &
-                              middle_x + 0.1 + leadLength / 2, &
-                              y_min - lead_translation(2) * 0.25, &
-                              y_min + lead_translation(2) * 0.75)
-    call qt%add_lead(rect_shape, (/lead_translation(1), lead_translation(2), 0.0D0 /))
+    ! First lead (lower Y side) -> store as lead 1
+    call addLeadRect(idx, middle_x - 0.1 - leadLength / 2, &
+                     middle_x + 0.1 + leadLength / 2, &
+                     y_min - lead_translation(2) * 0.25, &
+                     y_min + lead_translation(2) * 0.75, &
+                     (/lead_translation(1), lead_translation(2), 0.0D0/))
+    idx = idx + 1
 
-    if (save_bands) then
-      call qt%leads(1)%bands(trim(results_dir)//"/bands.dat", &
-                            -M_PI / one_over_sqrt_3, +M_PI/ one_over_sqrt_3, M_PI/ one_over_sqrt_3/160.0, & !k_min, k_max, dk
-                            -3.0D0 * eV2au, 3.0D0 * eV2au) !E_min, E_max
-    endif
-
-    ! Second lead (upper Y side)
-    call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
-                              middle_x - 0.1 - leadLength / 2, &
-                              middle_x + 0.1 + leadLength / 2, &
-                              y_max - lead_translation(2) * 0.75, &
-                              y_max + lead_translation(2) * 0.25)
-
-    call qt%add_lead(rect_shape, (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
+    ! Second lead (upper Y side) -> store as lead 2
+    call addLeadRect(idx, middle_x - 0.1 - leadLength / 2, &
+                     middle_x + 0.1 + leadLength / 2, &
+                     y_max - lead_translation(2) * 0.75, &
+                     y_max + lead_translation(2) * 0.25, &
+                     (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
+    idx = idx + 1
 
   end subroutine
 ! --------------------------------------------------------------------------------------------------
 
 
-
 ! --------------------------------------------------------------------------------------------------
 ! Add 2 leads on X sides, x invariant?
 ! --------------------------------------------------------------------------------------------------
-  subroutine addXInvLeads(x_min, x_max, yLeadMiddle, yLeadWidth, vecs_armchair)
+  subroutine addXInvLeads(idx, x_min, x_max, yLeadMiddle, yLeadWidth, vecs_armchair)
     use modscatter
     use modunits
     use modshape
     implicit none
 
-    type(qshape) :: rect_shape
+    integer :: idx
     doubleprecision :: lead_translation(2) !
     doubleprecision, intent(in) :: x_min, x_max
     doubleprecision, intent(in) :: yLeadMiddle, yLeadWidth
@@ -334,39 +389,32 @@ contains
     lead_translation = (/vecs_armchair(1,1), 0.0D0/)
     print*, "lead_translation: ", lead_translation
     ! First lead (lower X)
-    call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
-                              x_min - 0.1, &
-                              x_min + lead_translation(1) - 0.1, &
-                              yLeadMiddle - 0.1 - yLeadWidth / 2, &
-                              yLeadMiddle + 0.1 + yLeadWidth / 2)
-
-    call qt%add_lead(rect_shape, (/lead_translation(1), lead_translation(2), 0.0D0 /))
-
-    if (save_bands) then
-      call qt%leads(1)%bands(trim(results_dir)//"/bands.dat", &
-                            -M_PI / one_over_sqrt_3, M_PI/ one_over_sqrt_3, M_PI/ one_over_sqrt_3/160.0, & !k_min, k_max, dk
-                            -3.0D0 * eV2au, 3.0D0 * eV2au) !E_min, E_max
-    endif
+    call addLeadRect(idx, x_min - 0.1, &
+             x_min + lead_translation(1) - 0.1, &
+             yLeadMiddle - 0.1 - yLeadWidth / 2, &
+             yLeadMiddle + 0.1 + yLeadWidth / 2, &
+             (/lead_translation(1), lead_translation(2), 0.0D0/))
+    idx = idx + 1
 
     ! Second lead (higher X)
-    call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
-                              x_max - lead_translation(1) + 0.1, &
-                              x_max + 0.1, &
-                              yLeadMiddle - 0.1 - yLeadWidth / 2, &
-                              yLeadMiddle + 0.1 + yLeadWidth / 2)
-
-    call qt%add_lead(rect_shape, (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
+    call addLeadRect(idx, x_max - lead_translation(1) + 0.1, &
+             x_max + 0.1, &
+             yLeadMiddle - 0.1 - yLeadWidth / 2, &
+             yLeadMiddle + 0.1 + yLeadWidth / 2, &
+             (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
+    idx = idx + 1
 
   end subroutine
 ! --------------------------------------------------------------------------------------------------
 
-  subroutine addXInvDiagLeads(x_min, x_max, y_min, y_max, yLeadWidth, vecs_armchair)
+
+  subroutine addXInvDiagLeads(idx, x_min, x_max, y_min, y_max, yLeadWidth, vecs_armchair)
     use modscatter
     use modunits
     use modshape
     implicit none
 
-    type(qshape) :: rect_shape
+    integer :: idx
     doubleprecision :: lead_translation(2) !
     doubleprecision, intent(in) :: x_min, x_max, y_min, y_max
     doubleprecision, intent(in) :: yLeadWidth
@@ -377,61 +425,61 @@ contains
     lead_translation = (/vecs_armchair(1,1), 0.0D0/)
     print*, "lead_translation: ", lead_translation
     ! First lead (lower X) lower Y
-    call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
-                              x_min - 0.1, &
-                              x_min + lead_translation(1) - 0.1, &
-                              y_min - 0.1 , &
-                              y_min + 0.1 + yLeadWidth)
-
-    call qt%add_lead(rect_shape, (/lead_translation(1), lead_translation(2), 0.0D0 /))
+    call addLeadRect(idx, &
+                     x_min - 0.1, &
+                     x_min + lead_translation(1) - 0.1, &
+                     y_min - 0.1 , &
+                     y_min + 0.1 + yLeadWidth, &
+                     (/lead_translation(1), lead_translation(2), 0.0D0 /))
+    idx = idx + 1
 
     ! Second lead (higher X) higher Y
-    call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
-                              x_max - lead_translation(1) + 0.1, &
-                              x_max + 0.1, &
-                              y_max - 0.1 - yLeadWidth, &
-                              y_max + 0.1)
-
-    call qt%add_lead(rect_shape, (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
+    call addLeadRect(idx, &
+                     x_max - lead_translation(1) + 0.1, &
+                     x_max + 0.1, &
+                     y_max - 0.1 - yLeadWidth, &
+                     y_max + 0.1, &
+                     (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
+    idx = idx + 1
 
   end subroutine
+! --------------------------------------------------------------------------------------------------
 
 
-  subroutine addXInvUpDownLeads(x_min, x_max, y_min, y_max, yLeadWidth, vecs_armchair)
+  ! add leads that span whole Y side to simulate fold with leads on two layers
+  subroutine addXInvUpDownLeads(idx, x_min, x_max, y_min, y_max, vecs_armchair)
     use modscatter
     use modunits
     use modshape
     implicit none
 
-    type(qshape) :: rect_shape
+    integer :: idx
     doubleprecision :: lead_translation(2) !
     doubleprecision, intent(in) :: x_min, x_max, y_min, y_max
-    doubleprecision, intent(in) :: yLeadWidth
     doubleprecision, dimension(2,2), intent(in) :: vecs_armchair
 
 ! --------------------------------------------------------------------------------------------------
 
     lead_translation = (/vecs_armchair(1,1), 0.0D0/)
     print*, "lead_translation: ", lead_translation
-    ! First lead (lower X)
-    call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
-                              x_min - 0.1, &
-                              x_min + lead_translation(1) - 0.1, &
-                              y_min - 0.1 , &
-                              y_max + 0.1)
-
-    call qt%add_lead(rect_shape, (/lead_translation(1), lead_translation(2), 0.0D0 /))
+    ! First lead (lower X spanning Y)
+    call addLeadRect(idx, x_min - 0.1, &
+                     x_min + lead_translation(1) - 0.1, &
+                     y_min - 0.1 , &
+                     y_max + 0.1, &
+                     (/lead_translation(1), lead_translation(2), 0.0D0/))
+    idx = idx + 1
 
     ! Second lead (higher X)
-    call rect_shape%init_rect(SHAPE_RECTANGLE_XY, &
-                              x_max - lead_translation(1) + 0.1, &
-                              x_max + 0.1, &
-                              y_min - 0.1, &
-                              y_max + 0.1)
-
-    call qt%add_lead(rect_shape, (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
+    call addLeadRect(idx, x_max - lead_translation(1) + 0.1, &
+                     x_max + 0.1, &
+                     y_min - 0.1, &
+                     y_max + 0.1, &
+                     (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
+    idx = idx + 1
 
   end subroutine
+! --------------------------------------------------------------------------------------------------
 
 
 ! --------------------------------------------------------------------------------------------------
@@ -552,39 +600,44 @@ contains
     doubleprecision :: t0
     doubleprecision :: Vg
     doubleprecision :: E0
-    doubleprecision :: y
+    doubleprecision :: y, x
     doubleprecision :: r
 ! --------------------------------------------------------------------------------------------------
     if (.false.) atoms(0)%flag = atoms(0)%flag ! supress unused variable warning
     if (.not. (atomA%flag == atomB%flag)) then
+      ! hopping
       connect = .true.
-      t0 = (3.0D0 * eV2au) / sf
+      t0 = (- 3.0D0 * eV2au) / sf
       xA = atomA%atom_pos(1)
       yA = atomA%atom_pos(2)
       xB = atomB%atom_pos(1)
       yB = atomB%atom_pos(2)
-      B = Bau
-      y = (yB + yA) * 0.5
-      if (y < middle_y) B = -Bau ! bottom
+      B = cosineGradient(y, Bau, yBoundUpper, yBoundLower)
 
       ! Peierls phase
-      phi = - 0.5 * B * (yB + yA) * (xB - xA) ! y x already in au
+      phi = - 0.5 * B * (yB + yA - 2 * middle_y) * (xB - xA) ! y x already in au
       coupling_val = t0 * exp(II*phi)
     else
+      ! onsite
       connect = .true.
-      xA = atomA%atom_pos(1)
-      yA = atomA%atom_pos(2)
-      xB = atomB%atom_pos(1)
-      yB = atomB%atom_pos(2)
-      y = (yB + yA) * 0.5
+      x = atomA%atom_pos(1)
+      y = atomA%atom_pos(2)
       Vg = linear(y, Vgt, Vgb, yBoundUpper, yBoundLower)
-      ! Vg = Vgb
       E0 = linear(y, E0t, E0b, yBoundUpper, yBoundLower)
-      ! E0 = E0b
       coupling_val = - E0 - Vg
-      call random_number(r)
-      coupling_val = coupling_val * (1D0 + r / 10D0)
+      if (.not. (isInLeads(x, y))) then
+        ! not lead
+        call random_number(r)
+        ! potencjał andersona, +-5/100 eV dla sf8 -> 1/10 2/10 -----> sf4 - pomnożyć przez 2 sf ||||| rośnie AA maleje
+        ! add random number +- 0.05 eV
+        coupling_val = coupling_val + (2 * r - 1) * 0.1 * eV2au
+        ! coupling_val = coupling_val * (1D0 + (r - 0.5D0) / 10D0)
+      endif
     endif
   end function
 ! --------------------------------------------------------------------------------------------------
+
 end program main
+
+! TODO get "andersonAnmplitude" -> maks wartość zaburzenia to be a parameter
+! TODO set andersonAmplitude in leads to 0

@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from matplotlib.colors import Normalize
+from matplotlib.ticker import AutoMinorLocator
 
 import numpy as np
 from utils import *
@@ -162,6 +163,7 @@ def plotResistance(R: np.ndarray,
 
     fig, ax = plt.subplots(2, 3, figsize=(28, 11), height_ratios=[3.5,1])
 
+    # R = np.maximum(np.minimum(R, 0.1), 0)
     plotIm(fig, ax[0,0], R, Vb, B, Vt, rf"$R$ [${rUnit}$]")
     plotCrossSection(ax[1,0], R, Vb, B, Vt, rf"$R$ [${rUnit}$]")
 
@@ -265,6 +267,14 @@ def plotIm(fig, ax, x, Vb, B, Vt, cbar_label):
     ax.set_title(f"Vt = {Vt} V")
     ax.set_xlabel("Vb [V]")
     ax.set_ylabel("B [T]")
+
+    ax.xaxis.set_minor_locator(AutoMinorLocator(5))
+    ax.yaxis.set_minor_locator(AutoMinorLocator(5))
+
+    if args["grid"]:
+        ax.grid()
+        # ax.grid(which="minor", color="white", linewidth=0.3, alpha=0.5)
+        ax.grid(which="minor")
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cbar.set_label(cbar_label)
