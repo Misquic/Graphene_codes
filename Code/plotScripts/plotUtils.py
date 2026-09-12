@@ -68,10 +68,10 @@ def plotE0tE0b(E0t: np.ndarray,
     fig.savefig(f"{args["allResultsDir"]}E0tE0b.pdf")
 
 def plotDensities(nt: np.ndarray,
-             nb: np.ndarray,
-             Vb: np.ndarray,
-             B: np.ndarray,
-             Vt: float) -> None:
+                  nb: np.ndarray,
+                  Vb: np.ndarray,
+                  B: np.ndarray,
+                  Vt: float) -> None:
     print("Plotting Densities")
 
     fig, ax = plt.subplots(2, 2, figsize=(18, 16))
@@ -154,29 +154,32 @@ def plotConductance(T_2D: np.ndarray,
 def plotResistance(R: np.ndarray,
                    Vb:   np.ndarray,
                    B:    np.ndarray,
-                   Vt:   float) -> None:
+                   Vt:   float,
+                   log: bool) -> None:
     print("Plotting Resistance")
 
-    # R = R / 1000 # get in kiloOhms
-    # log10R = np.abs(R)
+    # R = R2Si(R)
     rUnit = r"\frac{\text{h}}{\text{e}}"
 
     fig, ax = plt.subplots(2, 3, figsize=(28, 11), height_ratios=[3.5,1])
 
-    # R = np.maximum(np.minimum(R, 0.1), 0)
-    plotIm(fig, ax[0,0], R, Vb, B, Vt, rf"$R$ [${rUnit}$]")
-    plotCrossSection(ax[1,0], R, Vb, B, Vt, rf"$R$ [${rUnit}$]")
+    Rplot = R
+    if log:
+        Rplot = np.log10(R)
 
-    dGdVb = differenciate(R, Vb)
+    plotIm(fig, ax[0,0], Rplot, Vb, B, Vt, rf"$R$ [${rUnit}$]")
+    plotCrossSection(ax[1,0], Rplot, Vb, B, Vt, rf"$R$ [${rUnit}$]")
+
+    dGdVb = differenciate(Rplot, Vb)
     plotIm(fig, ax[0,1], dGdVb, Vb, B, Vt, r"$\frac{dR}{dVb}$")
     plotCrossSection(ax[1,1], dGdVb, Vb[:-1], B, Vt, r"$\frac{dR}{dVb}$")
 
-    dGdB = differenciate(R, Vb, B)
+    dGdB = differenciate(Rplot, Vb, B)
     plotIm(fig, ax[0,2], dGdB, Vb, B, Vt, r"$\frac{dR}{dB}$")
     plotCrossSection(ax[1,2], dGdB, Vb, B[:-1], Vt, r"$\frac{dR}{dB}$")
 
     fig.tight_layout()
-    fig.savefig(f"{args["allResultsDir"]}Resistance.pdf")
+    fig.savefig(f"{args["allResultsDir"]}Resistance_{"log" if log else "lin"}.pdf")
 
 
 def plotdGdV(T_2D: np.ndarray,

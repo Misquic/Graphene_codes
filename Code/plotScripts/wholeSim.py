@@ -44,11 +44,11 @@ def execCommand(command: str) -> int:
 
 def prepareCommandsAndDirs()-> list[str]:
     saveSystem    = args["saveSystem"]
-    runTransport  = 1 if args["runTransport"] == 1 else 0
+    runTransport  = args["runTransport"]
     runEnergyScan = 0
-    plotResults   = 0
+    plotResults   = args["plotResults"]
     saveDensities = 0
-    saveBands     = 0
+    saveBands     = args["saveBands"]
     sf            = args["sf"]
     saveCurrents  = args["saveCurrents"]
     seed          = args["seed"]
@@ -195,15 +195,6 @@ def runSim() -> None:
     print(f"All runs took {minutes} min {round(totalTime - minutes * 60, 3)} s\n"
           f"Avg time/sim = {round((timeEnd - timeStart)/len(commands), 3)}")
 
-def getParamsFromDir(dir: str) -> tuple[float, float, float]:
-    baseDirName = os.path.basename(dir)
-    split = baseDirName.split('_')
-    B = float(split[1])
-    Vb = float(split[3])
-    Vt = float(split[5])
-
-    return B, Vb, Vt
-
 def filter(array: np.ndarray) -> np.ndarray:
     # return array
     np.nan_to_num(array, False)
@@ -261,21 +252,21 @@ def saveProcessed(T_2D: np.ndarray,
                   R_2D: np.ndarray,
                   Vb: np.ndarray,
                   B: np.ndarray):
-    np.savetxt(args["allResultsDir"] + "Vb.csv", Vb, delimiter=',')
-    np.savetxt(args["allResultsDir"] + "B.csv", B, delimiter=',')
-    np.savetxt(args["allResultsDir"] + "T.csv", T_2D, delimiter=',')
-    np.savetxt(args["allResultsDir"] + "Vgt.csv", Vgt_2D, delimiter=',')
-    np.savetxt(args["allResultsDir"] + "Vgb.csv", Vgb_2D, delimiter=',')
-    np.savetxt(args["allResultsDir"] + "E0t.csv", E0t_2D, delimiter=',')
-    np.savetxt(args["allResultsDir"] + "E0b.csv", E0b_2D, delimiter=',')
-    np.savetxt(args["allResultsDir"] + "nb.csv", nb_2D, delimiter=',')
-    np.savetxt(args["allResultsDir"] + "nt.csv", nt_2D, delimiter=',')
-    np.savetxt(args["allResultsDir"] + "R.csv", R_2D, delimiter=',')
+    np.savetxt(os.path.join(args["allResultsDir"], "Vb.csv"), Vb, delimiter=',')
+    np.savetxt(os.path.join(args["allResultsDir"], "B.csv"), B, delimiter=',')
+    np.savetxt(os.path.join(args["allResultsDir"], "T.csv"), T_2D, delimiter=',')
+    np.savetxt(os.path.join(args["allResultsDir"], "Vgt.csv"), Vgt_2D, delimiter=',')
+    np.savetxt(os.path.join(args["allResultsDir"], "Vgb.csv"), Vgb_2D, delimiter=',')
+    np.savetxt(os.path.join(args["allResultsDir"], "E0t.csv"), E0t_2D, delimiter=',')
+    np.savetxt(os.path.join(args["allResultsDir"], "E0b.csv"), E0b_2D, delimiter=',')
+    np.savetxt(os.path.join(args["allResultsDir"], "nb.csv"), nb_2D, delimiter=',')
+    np.savetxt(os.path.join(args["allResultsDir"], "nt.csv"), nt_2D, delimiter=',')
+    np.savetxt(os.path.join(args["allResultsDir"], "R.csv"), R_2D, delimiter=',')
 
 def processFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     print("Processing Files")
 
-    _, dirs = getFiles(args["allResultsDir"] + "dirs/")
+    _, dirs = getFiles(os.path.join(args["allResultsDir"], "dirs/"))
 
     l = len(dirs)
 
@@ -371,7 +362,7 @@ def processFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, 
 
     # process resistances
     execCommand(f"$PLOT_SCRIPTS/resistances/resistances {args["allResultsDir"]} {args["leadInfo"]}")
-    Rdata = read_csv(args["allResultsDir"] + "R.dat", delimiter = ',')
+    Rdata = read_csv(os.path.join(args["allResultsDir"], "R.dat"), delimiter = ',')
 
     for dirName, R in zip(Rdata[:, 0], Rdata[:, 1]):
         B, Vb, Vt = getParamsFromDir(dirName)
@@ -386,16 +377,16 @@ def processFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, 
 
 def readFiles(plotForVt: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     print("Reading files")
-    Vb = np.loadtxt(args["allResultsDir"] + "Vb.csv", delimiter=',')
-    B = np.loadtxt(args["allResultsDir"] + "B.csv", delimiter=',')
-    T = np.loadtxt(args["allResultsDir"] + "T.csv", delimiter=',')
-    Vgt = np.loadtxt(args["allResultsDir"] + "Vgt.csv", delimiter=',')
-    Vgb = np.loadtxt(args["allResultsDir"] + "Vgb.csv", delimiter=',')
-    E0t = np.loadtxt(args["allResultsDir"] + "E0t.csv", delimiter=',')
-    E0b = np.loadtxt(args["allResultsDir"] + "E0b.csv", delimiter=',')
-    nt = np.loadtxt(args["allResultsDir"] + "nt.csv", delimiter=',')
-    nb = np.loadtxt(args["allResultsDir"] + "nb.csv", delimiter=',')
-    R = np.loadtxt(args["allResultsDir"] + "R.csv", delimiter=',')
+    Vb = np.loadtxt(os.path.join(args["allResultsDir"], "Vb.csv"), delimiter=',')
+    B = np.loadtxt(os.path.join(args["allResultsDir"], "B.csv"), delimiter=',')
+    T = np.loadtxt(os.path.join(args["allResultsDir"], "T.csv"), delimiter=',')
+    Vgt = np.loadtxt(os.path.join(args["allResultsDir"], "Vgt.csv"), delimiter=',')
+    Vgb = np.loadtxt(os.path.join(args["allResultsDir"], "Vgb.csv"), delimiter=',')
+    E0t = np.loadtxt(os.path.join(args["allResultsDir"], "E0t.csv"), delimiter=',')
+    E0b = np.loadtxt(os.path.join(args["allResultsDir"], "E0b.csv"), delimiter=',')
+    nt = np.loadtxt(os.path.join(args["allResultsDir"], "nt.csv"), delimiter=',')
+    nb = np.loadtxt(os.path.join(args["allResultsDir"], "nb.csv"), delimiter=',')
+    R = np.loadtxt(os.path.join(args["allResultsDir"], "R.csv"), delimiter=',')
 
     return T, Vgt, Vgb, E0t, E0b, nt, nb, R, Vb, B
 
@@ -404,7 +395,7 @@ def createDirName(B: float,
                   plotForVt: float) -> str:
     return f"B_{B}_Vb_{Vb}_Vt_{plotForVt}"
 
-def plotCurrents(Vb: np.ndArray,
+def plotCurrents(Vb: np.ndarray,
                  B: np.ndarray,
                  plotForVt: float):
     newB = B[:: len(B) // min(len(B), args["numB"] - 1 )]
@@ -423,25 +414,25 @@ def plotCurrents(Vb: np.ndArray,
     execCommand(f"mkdir {os.path.join(args["allResultsDir"], "currents")}")
     runCommands(cmds, args["maxParallel"])
 
-
-def plotAll(plotForVt : float) -> None:
-    if (not os.path.exists(args["allResultsDir"] + "T.csv") or \
-        not os.path.exists(args["allResultsDir"] + "Vgt.csv") or \
-        not os.path.exists(args["allResultsDir"] + "Vgb.csv") or
+def getArrays(plotForVt: float) -> tuple:
+    if (not os.path.exists(os.path.join(args["allResultsDir"], "T.csv")) or \
+        not os.path.exists(os.path.join(args["allResultsDir"], "Vgt.csv")) or \
+        not os.path.exists(os.path.join(args["allResultsDir"], "Vgb.csv")) or
         args["processFiles"]):
-        T_2D, Vgt, Vgb, E0t, E0b, nt, nb, R, Vb, B = processFiles(plotForVt)
+        T, Vgt, Vgb, E0t, E0b, nt, nb, R, Vb, B = processFiles(plotForVt)
     else:
-        T_2D, Vgt, Vgb, E0t, E0b, nt, nb, R, Vb, B = readFiles(plotForVt)
+        T, Vgt, Vgb, E0t, E0b, nt, nb, R, Vb, B = readFiles(plotForVt)
 
     if (args["filter"] == 1):
-        # T_2D[T_2D > 125] = 125
-        T_2D = filter(T_2D)
+        # T[T > 125] = 125
+        T = filter(T)
         R = filter(R)
-    if len(T_2D) == 0: return
+        R = np.minimum(np.maximum(R, 0.00001), args["Rmax"])
+    if len(T) == 0: return
 
     if (args["cut"] == 1):
-        T_2D, _, _ = cutT(T_2D, Vb, B)
-        # T_2D = smoothZeros(T_2D)
+        T, _, _ = cutT(T, Vb, B)
+        # T = smoothZeros(T)
         Vgt,  _, _ = cutT(Vgt,  Vb, B)
         Vgb,  _, _ = cutT(Vgb,  Vb, B)
         E0t,  _, _ = cutT(E0t,  Vb, B)
@@ -451,18 +442,24 @@ def plotAll(plotForVt : float) -> None:
         nb,  Vb, B =  (nb,  Vb, B)
         print("cut:")
 
+    return T, Vgt, Vgb, E0t, E0b, nt, nb, R, Vb, B
+
+def plotAll(plotForVt : float) -> None:
+    T, Vgt, Vgb, E0t, E0b, nt, nb, R, Vb, B = getArrays(plotForVt)
+
     print(B)
     print(Vb)
 
     print("Plotting")
     if args["plotAll"]:
-        plotConductance(T_2D, Vb, B, plotForVt)
-        plotResistance(R, Vb, B, plotForVt)
+        plotConductance(T, Vb, B, plotForVt)
+        plotResistance(R, Vb, B, plotForVt, log=0)
+        plotResistance(R, Vb, B, plotForVt, log=1)
         plotVgtVgb(Vgt, Vgb, Vb, B, plotForVt)
         plotE0tE0b(E0t, E0b, Vb, B, plotForVt)
         plotDensities(nt, nb, Vb, B, plotForVt)
-        plotdGdV(T_2D, Vb, B, plotForVt)
-        plotdGdB(T_2D, Vb, B, plotForVt)
+        plotdGdV(T, Vb, B, plotForVt)
+        plotdGdB(T, Vb, B, plotForVt)
         E0t_unique = np.unique(E0t)
         E0b_unique = np.unique(E0b)
         if (len(E0t_unique) > 1) or (len(E0b_unique) > 1):
@@ -470,6 +467,42 @@ def plotAll(plotForVt : float) -> None:
 
     if args["plotCurrents"]:
         plotCurrents(Vb, B, plotForVt)
+
+def averageFiles() -> None:
+    originalAllResultsDir = args["allResultsDir"]
+    _, dirs = getFiles(originalAllResultsDir)
+
+    print(f"Averaging files in {dirs}")
+    RTotal = None
+    TTotal = None
+
+    for dir in dirs:
+        # processing will need to get dir from args
+        args["allResultsDir"] = dir
+        T, Vgt, Vgb, E0t, E0b, nt, nb, R, Vb, B = getArrays(0)
+        R = np.nan_to_num(R, nan=0)
+        T = np.nan_to_num(T, nan=0)
+
+        if RTotal is None:
+            RTotal = R
+            TTotal = T
+        else:
+            RTotal += R
+            TTotal += T
+
+        print(np.max(RTotal), np.min(RTotal))
+
+    Ravg = RTotal / (len(dirs))
+    Tavg = TTotal / (len(dirs))
+
+    # braing back allResultsDir
+    args["allResultsDir"] = originalAllResultsDir
+
+    saveProcessed(T, Vgt, Vgb, E0t, E0b, nt, nb, R, Vb, B)
+
+    # overwrite with average values
+    np.savetxt(os.path.join(args["allResultsDir"], "R.csv"), Ravg, delimiter=',')
+    np.savetxt(os.path.join(args["allResultsDir"], "T.csv"), Tavg, delimiter=',')
 
 ################################################################################
 
@@ -485,6 +518,9 @@ if __name__ == "__main__":
 
     if (args["runSim"] == 1) or (args["prepCmdsOnly"] == 1):
         runSim()
+
+    if (args["averageFiles"] == 1):
+        averageFiles()
 
     if (args["plotAll"] == 1) or (args["plotCurrents"]):
         VtTab = createTab(args["VtMin"], args["VtMax"], args["numVt"])

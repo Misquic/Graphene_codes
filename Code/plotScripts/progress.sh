@@ -11,8 +11,15 @@ DIR=$1
 
 TOTAL=$(( $(wc -l < "$DIR/commands.txt") - 1 ))
 
-COMPLETED=$(ls "$DIR"dirs/*/Transmissions.csv | wc -l)
 # COMPLETED_COUNT=$(echo "$COMPLETED" | wc -l)
 
-PERCENT=$(( $COMPLETED * 100 / $TOTAL))
-echo "Completed: $COMPLETED / $TOTAL = $PERCENT %"
+PERCENT=0
+
+while [ $PERCENT -lt 100 ]
+do
+  COMPLETED=$(ls "$DIR"dirs/*/Transmissions.csv | wc -l)
+  PERCENT=$(( $COMPLETED * 100 / $TOTAL))
+  echo "Completed: $COMPLETED / $TOTAL = $PERCENT %"
+  S=$(( 100 + 10 - $PERCENT ))
+  sleep $S
+done

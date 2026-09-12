@@ -63,6 +63,7 @@ public:
   // inline static constexpr double nib_default = 0 * 1e11 * inv_cmsq2au;
   inline static constexpr double dt_default  = 330.0 * nm2au; // SiO2
   inline static constexpr double dg_default  = 0.5 * nm2au;
+  // inline static constexpr double dg_default  = 1 * nm2au;
   inline static constexpr double db_default  = 40.0 * nm2au; // hBN
   inline static constexpr double et_default  = 3.9; // SiO2
   inline static constexpr double eg_default  = 1.0;
@@ -80,6 +81,20 @@ public:
   inline static double E0Max = 5 * eV2au;
   inline static double VgMin = -5 * V2au;
   inline static double VgMax = 5 * V2au;
+
+  // ------------------------------ Position Generation ----------------------------------------- //
+
+  // math values
+  static constexpr double sqrt3 = 1.73205080756887729352;
+  static constexpr double oneOverSqrt3 = 1.0 / sqrt3;
+  static constexpr double sin30 = 0.5;
+  static constexpr double cos30 = sqrt3 / 2.0;
+  static constexpr double alpha30 = 30.0 / 180.0 * M_PI;
+
+  // derived values
+  static constexpr double vecsArmchair[2][2] = {{1.0, 0.0}, {sin30, cos30}};
+  static constexpr double atomsArmchair[2][2] = {{0.0, 0.0}, {0.0, oneOverSqrt3}};
+  static constexpr double posOffsetArmchair[2] = {-sin30, -cos30};
 
   Const(const Const& other) = delete;
   Const(Const&& other) = delete;

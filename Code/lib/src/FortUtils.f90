@@ -125,7 +125,8 @@ contains
     character(len=512) :: help_buffer
 ! --------------------------------------------------------------------------------------------------
 
-        ! check first argument if it's "help" then print help and exit, else its results dir
+  ! check first argument if it's "help" then print help and exit, else its results dir
+    print*, "Parsing Args"
 
     if (getNextArgument(arg_buffer)) then
       help_buffer = trim(arg_buffer)

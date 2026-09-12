@@ -3,13 +3,20 @@ module TransportUtils
   implicit none
 
   ! unit conversion
-  doubleprecision,parameter :: T2au        = 4.254382E-6          ! B(au) = B(T)*T2au
-  doubleprecision,parameter :: eV2au       = 0.03674932587122423  ! V(au)  = V(eV)*eV2au
-  doubleprecision,parameter :: nm2au       = 1.0 / 0.0529           ! d(au)  = d(nm)*nm2au
-  doubleprecision,parameter :: cm2au       = 1e-2 * 1e9 * nm2au
-  doubleprecision,parameter :: inv_cmsq2au = 1. / cm2au / cm2au
+  doubleprecision,parameter :: T2au            = 4.254382E-6          ! B(au) = B(T)*T2au
+  doubleprecision,parameter :: eV2au           = 0.03674932587122423  ! V(au)  = V(eV)*eV2au
+  doubleprecision,parameter :: nm2au           = 1.0 / 0.0529           ! d(au)  = d(nm)*nm2au
+  doubleprecision,parameter :: cm2au           = 1e-2 * 1e9 * nm2au
+  doubleprecision,parameter :: inv_cmsq2au     = 1. / cm2au / cm2au
   doubleprecision,parameter :: one_over_sqrt_3 = 1.0D0 / sqrt(3.0)
-  doubleprecision,parameter :: M_PI        = 3.1415926535898
+  doubleprecision,parameter :: M_PI            = 3.1415926535898
+
+  ! other
+  doubleprecision, parameter :: alpha30            = 30.0/180.0*M_PI
+  doubleprecision, parameter :: carbonCarbonDist   = 0.142D0
+  doubleprecision, parameter :: carbonCarbonDistAu = carbonCarbonDist * nm2au
+  doubleprecision, parameter :: geometric_unit     = carbonCarbonDist * sqrt(3.0D0)
+  doubleprecision, parameter :: geometric_unit2au  = geometric_unit * nm2au
 
 abstract interface
   logical function func_simple(atomA,atomB,coupling_val,atoms)
@@ -44,7 +51,7 @@ contains
 
     if (y <= yBoundLower) then
       linear = bottomValue
-    else if (y > yBoundUpper) then
+    else if (y >= yBoundUpper) then
       linear = topValue
     else
       yRange = yBoundUpper - yBoundLower
@@ -155,6 +162,7 @@ contains
 
     do j = 1 , numLeads ! from
       do i = 1 , numLeads ! to
+        ! smatrix(z, do)
         transmissions(i, j) = sum(abs(qt%smatrix(i,j)%Tnm)**2)
         print"(A,i3,A,i3,A,f10.6)","T(",i,",",j,")=", transmissions(i, j)
       enddo
@@ -242,10 +250,62 @@ contains
     if (save_bands) then
       print*,"  Plotting band structure..."
       call execute_command_line("python plot_bands.py "//trim(results_dir)//"/")
+    else
+      print*,"  Plotting Transmission..."
+      call execute_command_line("python plot_T.py "//trim(results_dir)//"/")
     endif
-    print*,"  Plotting Transmission..."
-    call execute_command_line("python plot_T.py "//trim(results_dir)//"/")
   end subroutine generatePlots
 ! --------------------------------------------------------------------------------------------------
+
+
+! --------------------------------------------------------------------------------------------------
+! Squares a number
+! --------------------------------------------------------------------------------------------------
+doubleprecision function pow2(x)
+  implicit none
+  double precision :: x
+
+  pow2 = x * x
+
+end function pow2
+
+! --------------------------------------------------------------------------------------------------
+! Len of vector
+! --------------------------------------------------------------------------------------------------
+doubleprecision function len(vec)
+  implicit none
+  double precision :: vec(3)
+
+  len = sqrt(pow2(vec(1)) + pow2(vec(2)) + pow2(vec(3)))
+
+end function len
+
+
+doubleprecision function scaleBasedOnSf(value, sf, maxSfOpt) result(scaled)
+  implicit none
+  doubleprecision :: value
+  integer :: sf
+  integer, optional :: maxSfOpt
+  integer :: maxSf = 16
+
+  if (present(maxSfOpt)) maxSf = maxSfOpt
+  scaled = value * maxSf / sf
+
+end function scaleBasedOnSf
+
+
+integer function scaleBasedOnSfInt(value, sf, maxSfOpt) result(scaled)
+  implicit none
+  integer :: value
+  integer :: sf
+  integer, optional :: maxSfOpt
+  integer :: maxSf = 16
+
+  if (present(maxSfOpt)) maxSf = maxSfOpt
+  scaled = value * maxSf / sf
+
+end function scaleBasedOnSfInt
+
+
 
 endmodule

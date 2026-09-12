@@ -107,6 +107,9 @@ program main
       call performEnergyScan(qt, connect)
     endif
 
+    if (plot_results) then
+      call generatePlots()
+    endif
 
     print*,"Calculation complete!"
   endif
@@ -163,10 +166,11 @@ contains
     pos_min = pos_offset_armchair * 0.5 + 0.001 ! 0.001 is to ommit numerical errors
 
     ! settup of Lead width
-    yLeadWidth = (pos_max(2) - pos_min(2)) * 0.5 * 0.3 ! 0.5 -> 2 leads on one side, each takes 0.4 of half width
+    yLeadWidth = (pos_max(2) - pos_min(2)) * 0.5 * 0.5 ! 0.5 -> 2 leads on one side, each takes 0.4 of half width
     cellSize = 3 * carbon_carbon_dist * nm2au * sf ! lead must be multiple of size to make good edges of cutss
     yLeadWidth = cellSize * (int(yLeadWidth / cellSize) + 1) ! round up
-    xLenCut = (pos_max(1) - pos_min(1)) * 0.05
+    xLenCut = (pos_max(1) - pos_min(1)) * 0.02 !
+    ! xLenCut = (pos_max(1) - pos_min(1)) * 0.01 ! longerX
 
     x_min = atoms_armchair(1,1)
     x_max = atoms_armchair(1,1)
@@ -191,7 +195,7 @@ contains
 
     !---------------------------------------- Lattice ----------------------------------------------
     call qt%init_system()
-    QSYS_DEBUG_LEVEL = 0
+    QSYS_DEBUG_LEVEL = 1
     QSYS_FORCE_SCHUR_DECOMPOSITION  = .false. ! don't use schur method so its quicker
     ! Try with .true.
 
@@ -270,7 +274,7 @@ contains
     do i = 1, numLeads
       call qt%add_lead(leadShapes(i), leadTrans(:, i))
       if (save_bands) then
-        call qt%leads(i)%bands(trim(results_dir)//"/bands" // str(i) // ".dat", &
+        call qt%leads(i)%bands(trim(results_dir)//"/bands" // trim(str(i)) // ".dat", &
                               -M_PI / one_over_sqrt_3, +M_PI/ one_over_sqrt_3, M_PI/ one_over_sqrt_3/160.0, & !k_min, k_max, dk
                               -3.0D0 * eV2au, 3.0D0 * eV2au) !E_min, E_max
       endif
@@ -457,24 +461,26 @@ contains
     doubleprecision :: lead_translation(2) !
     doubleprecision, intent(in) :: x_min, x_max, y_min, y_max
     doubleprecision, dimension(2,2), intent(in) :: vecs_armchair
+    doubleprecision :: range(2)
 
 ! --------------------------------------------------------------------------------------------------
 
+    range = (/ x_max - x_min, y_max - y_min /)
     lead_translation = (/vecs_armchair(1,1), 0.0D0/)
     print*, "lead_translation: ", lead_translation
     ! First lead (lower X spanning Y)
-    call addLeadRect(idx, x_min - 0.1, &
-                     x_min + lead_translation(1) - 0.1, &
-                     y_min - 0.1 , &
-                     y_max + 0.1, &
+    call addLeadRect(idx, x_min - lead_translation(1) * 0.25 - 1, &
+                     x_min + lead_translation(1) * 0.75 + 0.1, &
+                     y_min - range(2) * 0.05, &
+                     y_max + range(2) * 0.05, &
                      (/lead_translation(1), lead_translation(2), 0.0D0/))
     idx = idx + 1
 
     ! Second lead (higher X)
-    call addLeadRect(idx, x_max - lead_translation(1) + 0.1, &
-                     x_max + 0.1, &
-                     y_min - 0.1, &
-                     y_max + 0.1, &
+    call addLeadRect(idx, x_max - lead_translation(1) * 0.75 - 0.1, &
+                     x_max + lead_translation(1) * 0.25 + 0.1, &
+                     y_min - range(2) * 0.05, &
+                     y_max + range(2) * 0.05, &
                      (/-lead_translation(1), -lead_translation(2), 0.0D0 /))
     idx = idx + 1
 
@@ -571,7 +577,7 @@ contains
       ((atom_pos(1) > pos_min(1) + 2 * xLenCut) .and. (atom_pos(1) < pos_max(1) - 2 * xLenCut) .and. &
        (atom_pos(2) > pos_min(2)) .and. (atom_pos(2) < pos_max(2))) .or. & ! 1
       ((atom_pos(1) > pos_min(1) + xLenCut) .and. (atom_pos(1) < pos_max(1) - xLenCut) .and. &
-       (atom_pos(2) > middle_y - yLeadWidth / 4) .and. (atom_pos(2) < middle_y + yLeadWidth / 4)) .or. & ! 2
+       (atom_pos(2) > middle_y - yLeadWidth / 2) .and. (atom_pos(2) < middle_y + yLeadWidth / 2)) .or. & ! 2
       ((atom_pos(1) > pos_min(1)) .and. (atom_pos(1) < pos_max(1)) .and. &
        (atom_pos(2) > pos_min(2)) .and. (atom_pos(2) < pos_min(2) + yLeadWidth)) .or. & ! 4
       ((atom_pos(1) > pos_min(1)) .and. (atom_pos(1) < pos_max(1)) .and. &
@@ -613,7 +619,7 @@ contains
       xB = atomB%atom_pos(1)
       yB = atomB%atom_pos(2)
       B = cosineGradient(y, Bau, yBoundUpper, yBoundLower)
-
+      ! B = Bau
       ! Peierls phase
       phi = - 0.5 * B * (yB + yA - 2 * middle_y) * (xB - xA) ! y x already in au
       coupling_val = t0 * exp(II*phi)
@@ -625,13 +631,12 @@ contains
       Vg = linear(y, Vgt, Vgb, yBoundUpper, yBoundLower)
       E0 = linear(y, E0t, E0b, yBoundUpper, yBoundLower)
       coupling_val = - E0 - Vg
-      if (.not. (isInLeads(x, y))) then
+      if (isInLeads(x, y) == 0) then
         ! not lead
         call random_number(r)
-        ! potencjał andersona, +-5/100 eV dla sf8 -> 1/10 2/10 -----> sf4 - pomnożyć przez 2 sf ||||| rośnie AA maleje
+        ! potencjał andersona, +-5/100 eV dla sf8 -> 1/10 2/10 -----> sf4 - pomnożyć przez 2 sf ||||| sf rośnie AA maleje
         ! add random number +- 0.05 eV
-        coupling_val = coupling_val + (2 * r - 1) * 0.1 * eV2au
-        ! coupling_val = coupling_val * (1D0 + (r - 0.5D0) / 10D0)
+        coupling_val = coupling_val + (2 * r - 1) * 0.075D0 * eV2au
       endif
     endif
   end function

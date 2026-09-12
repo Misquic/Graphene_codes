@@ -33,6 +33,8 @@ def T2Gau(T: np.ndarray) -> np.ndarray:
 def T2GSi(T: np.ndarray) -> np.ndarray:
     return (2*eSi*eSi/hSi)*T
 
+def R2Si(R: np.ndarray) -> np.ndarray:
+    return R*eSi/hSi
 
 def read_csv(path: str, delimiter = ' ', header = None) -> np.ndarray:
     data = pd.read_csv(path, delimiter = delimiter, header = header)
@@ -109,20 +111,25 @@ def parseArgs(args: dict) -> None:
     keys = [k for k in args.keys()]
 
     # parse positional args
+    numParsed = 1
     for index, arg in enumerate(sys.argv[1:]):
-        if (arg[0] == '-') and (arg[1] == '-'):
+        if (arg[0] == '-' and arg[1] not in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']) or (len(arg) > 1 and (arg[1] == '-')):
             break
         args[keys[index]] = float(arg)
+        numParsed += 1
 
     # parse named args
-    for index, arg in enumerate(sys.argv):
-        if ((arg[0] == '-') and (arg[1] == '-')):
+    for index, arg in enumerate(sys.argv[numParsed:]):
+        print(arg)
+        if ((arg[0] == '-') or (arg[1] == '-')):
+            replIndex = 2
+            if (arg[1] != '-'): replIndex = 1
             if ("=" in arg):
-                argName = arg.replace('-', "", 2)
+                argName = arg.replace('-', "", replIndex)
                 argValue = argName.split('=')[1]
                 argName = argName.split('=')[0]
             elif (index != len(sys.argv) - 1):
-                argName = arg.replace('-', "", 2)
+                argName = arg.replace('-', "", replIndex)
                 argValue = sys.argv[index + 1]
             else:
                 print("Something wrong with arguments")
@@ -161,3 +168,14 @@ def progressBar(current, min, max, timeStart, end = '\n') -> None:
           f"ETA: {minutes} min {round(timeToFinish - minutes * 60, 1)} s   ", end = end, flush = True)
     if (current == max):
         print('')
+
+def getParamsFromDir(dir: str) -> tuple[float, float, float]:
+    if (dir[-1] == '/'):
+        dir = dir.split('/')[-2]
+    baseDirName = os.path.basename(dir)
+    split = baseDirName.split('_')
+    B = float(split[1])
+    Vb = float(split[3])
+    Vt = float(split[5])
+
+    return B, Vb, Vt

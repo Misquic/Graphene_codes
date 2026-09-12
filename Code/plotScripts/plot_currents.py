@@ -29,11 +29,13 @@ if len(sys.argv) >= 3:
     outDir = sys.argv[2]
 
 absPath = os.path.abspath(directory)
-sf = int(absPath.split("sf")[-1].split("/")[0])
+sfString = absPath.split("sf")[-1].split('_')[0]
+print(f"sfString {sfString}")
+sf = int(sfString)
 
 files, _ = getFiles(directory, ext = "txt")
 files = [f for f in files if "current" in getNameOfFile(f)]
-print(files)
+print(f"files {files}")
 
 fig, axes = plt.subplots(2, len(files), figsize=(len(files) * 6, 12))
 # try:
@@ -44,6 +46,8 @@ B, Vb, _ = getParamsFromDir(directory)
 
 fig.suptitle(f"B = {B} T, Vb = {float(Vb)} V", fontsize = 16)
 for file, ax0, ax1 in zip(files, axes[0,:], axes[1,:]):
+    if not "current" in file:
+        continue
     print(file)
     data  = np.loadtxt(file, usecols=(0, 1, 3, 4, 5))
 

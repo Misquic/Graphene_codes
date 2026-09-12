@@ -11,7 +11,7 @@ message(STATUS "If CmakeCache already exists this check fails so be sure to prov
 
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -Wall -Wextra -DDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native -Wall -Wextra -DNDEBUG")
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -fPIC -fPIE -warn all")
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -fPIC -fPIE -warn all -fpp")
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
@@ -25,4 +25,5 @@ add_subdirectory(examples/Bilayer_transport_v0)
 add_subdirectory(examples/Bilayer_Magnetism_voltages)
 add_subdirectory(examples/values_Magnetism)
 add_subdirectory(examples/Transport_multilead)
+add_subdirectory(examples/3D_Transport_multilead)
 # add_subdirectory(examples/Bilayer_Magnetism_densities)

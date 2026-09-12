@@ -5,17 +5,16 @@
 #include <filesystem>
 
 bool check_(int result, int line);
-
-#ifdef NDEBUG
-  #define printMatD(mat)
-  #define printMat4D(mat)
-  #define dmsg(x)
-  #define check(result) (result)
-#else
+#ifdef DEBUG
   #define printMatD(mat) printMat(mat)
   #define printMat4D(mat) printMat4(mat)
   #define dmsg(x) std::cerr << x << '\n'
   #define check(result) check_((result), __LINE__);
+#else
+  #define printMatD(mat)
+  #define printMat4D(mat)
+  #define dmsg(x)
+  #define check(result) (result)
 #endif
 
 #define index4(i, j) ((i) * 4 + (j))

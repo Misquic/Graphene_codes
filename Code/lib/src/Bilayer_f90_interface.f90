@@ -89,6 +89,18 @@ module Bilayer_interface
       real(c_double), intent(in), value :: n0, B
       real(c_double) :: E_0
     end function
+
+    subroutine Bilayer_generatePositions3D(nX, nY, foldRadius, &
+                                           cutLead, leadWidth, &
+                                           data_p, size) &
+                                           bind(C, name="Bilayer_generatePositions3D")
+      import :: c_double, c_int, c_ptr
+      integer(c_int), intent(in), value :: nX, nY
+      real(c_double), intent(in), value :: foldRadius
+      integer(c_int), intent(in), value :: cutLead, leadWidth
+      type(c_ptr), intent(out) :: data_p
+      integer(c_int), intent(out) :: size
+    end subroutine Bilayer_generatePositions3D
   end interface
 
 end module Bilayer_interface

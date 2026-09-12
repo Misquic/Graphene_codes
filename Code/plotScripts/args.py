@@ -20,13 +20,17 @@ args = {
     "filter"       : 0,                                        # if 1 then finters results before plot
     "prepCmdsOnly" : 0,                                        # if 1 then only prepares commands and doesn't run sims
     "Executable"   : "./Transport2D",                          # exetucable to simulation
-    "cmap"         : "viridis",                                # cmap for plots
+    "cmap"         : "inferno_r",                                # cmap for plots
     "cut"          : 0,                                        # cut plots to Bmin Bmax Vbmin Vbmax
     "saveCurrents" : 0,                                        # saves and plots currents
     "leadInfo"     : "\"currentLeadFrom currentLeadTo voltageLeadHigh voltageLeadLow\"", \
                                                                # leadInfo for resistances postprocessing
     # "resistance"   : 0,
-    "grid"         : 1,                                        # if 1 then plots imShow with grid
+    "grid"         : 0,                                        # if 1 then plots imShow with grid
     "plotCurrents" : 0,                                        # if 1 then plots currents for points described by division with numB and numVb
-    "seed"         : 12345                                     # seed for simulations
+    "seed"         : 12345,                                    # seed for simulations
+    "Rmax"         : 0.4,                                      # maximum R when filtering is applied
+    "averageFiles" : 0,                                        # if 1 then averages files first from subdirectories
+    "saveBands"    : 0,
+    "plotResults"  : 0,
 }

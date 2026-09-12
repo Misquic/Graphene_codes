@@ -1,4 +1,5 @@
 #include "Bilayer.h"
+#include "BilayerPositionGeneration.h"
 #include "Constants.h"
 
 Bilayer* Bilayer_constructor(double nit, double nib,
@@ -115,3 +116,33 @@ double count_E_0(double n0, double B){
 
   return count_E_0(E_nl_vec, n0, B, prepare_part_sum(E_nl_vec))/Const::eV2au;
 };
+
+extern "C" void Bilayer_generatePositions3D(
+  const int nX,
+  const int nY,
+  const double foldRadius,
+  const int cutLead,
+  const int leadWidth,
+  const double** const data_pp,
+  int* const size_p)
+{
+  ParamsS params =
+  {
+    .nX = (size_t)nX,
+    .nY = (size_t)nY,
+    .foldRadius = foldRadius,
+    .cutLead = (size_t)cutLead,
+    .leadWidth = (size_t)leadWidth
+  };
+
+  makeParamsRight(params);
+
+  static std::vector<Vec3S> positions = generatePositions(params);
+
+#ifdef DEBUG
+  savePositions(params.saveFileName, positions);
+#endif
+
+  *data_pp = &positions[0].x;
+  *size_p = positions.size();
+}

@@ -10,6 +10,8 @@ add_library(GrapheneLib STATIC
             "src/BilayerMagnetic.cpp"
             "src/Utilities.cpp"
             "src/Bilayer_c_interface.cpp"
+            "src/BilayerPositionGeneration.cpp"
+            "src/BilayerParams.cpp"
             "src/Bilayer_f90_interface.f90"
             "src/FortUtils.f90")
 
