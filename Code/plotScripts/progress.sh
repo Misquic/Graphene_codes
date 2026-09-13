@@ -20,6 +20,6 @@ do
   COMPLETED=$(ls "$DIR"dirs/*/Transmissions.csv | wc -l)
   PERCENT=$(( $COMPLETED * 100 / $TOTAL))
   echo "Completed: $COMPLETED / $TOTAL = $PERCENT %"
-  S=$(( 100 + 10 - $PERCENT ))
+  S=$(( 100 + 30 - $PERCENT ))
   sleep $S
 done

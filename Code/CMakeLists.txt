@@ -11,7 +11,8 @@ message(STATUS "If CmakeCache already exists this check fails so be sure to prov
 
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -Wall -Wextra -DDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native -Wall -Wextra -DNDEBUG")
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -fPIC -fPIE -warn all -fpp")
+set(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE} -O3 -DNDEBUG -fPIC -fPIE -warn all -fpp")
+set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} -g -DDEBUG -fPIC -fPIE -warn all -fpp")
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 

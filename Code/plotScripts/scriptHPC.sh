@@ -1,8 +1,8 @@
 #!/bin/bash -l
 #SBATCH -J Bilayer_ni
 #SBATCH --cpus-per-task=2
-#SBATCH --mem 7000
-#SBATCH --time=2:30:00
+#SBATCH --mem 30000
+#SBATCH --time=20:00:00
 #SBATCH --account=plgmrenca2025-cpu
 #SBATCH -p plgrid
 

@@ -11,7 +11,7 @@ if [ $# -ne 1 ] && [ $# -ne 2 ] && [ $# -ne 3 ]; then
   exit 1
 fi
 
-SF=8
+SF=1
 SEED=12345
 WAIT=""
 
@@ -25,12 +25,12 @@ if [ $# -eq 3 ]; then
   SEED=$3
 fi
 
-EXECUTABLE=Execs/Transport_A0-075_L1-3_d05_test3D
+EXECUTABLE=Execs/Transport3D_base_200x200_Rx10
 
 minB=1
 maxB=7
-minVb=-50
-maxVb=0
+minVb=-60
+maxVb=10
 
 DIR="$1"/"$minB""$maxB"_"$minVb""$maxVb"_sf"$SF"_S"$SEED/"
 
@@ -38,14 +38,14 @@ echo "preparing commands and directories for $DIR"
 
 pythonCmd="python $PLOT_SCRIPTS/wholeSim.py $minB $maxB $minVb $maxVb \
 --dB=0.05   \
---dVb=0.25 \
+--dVb=0.5 \
 --allResultsDir=$DIR \
 --runTransport=1 \
 --saveBands=0 \
 --plotResults=0 \
 --clearDir=1 \
 --prepCmdsOnly=1 \
---saveStdout=0 \
+--saveStdout=1 \
 --saveCurrents=0 \
 --sf=$SF \
 --seed=$SEED \
@@ -66,8 +66,7 @@ if [ "$TOTAL" -eq 0 ]; then
     exit 1
 fi
 
-# RUNS_PER_JOB=100
-RUNS_PER_JOB=120
+RUNS_PER_JOB=100
 NJOBS=$(( (TOTAL + RUNS_PER_JOB - 1) / RUNS_PER_JOB ))
 echo "NJOBS $NJOBS"
 echo "RUNS_PER_JOB $RUNS_PER_JOB"

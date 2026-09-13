@@ -18,22 +18,26 @@ program main
   doubleprecision :: middle_y             ! Y coordinate of fold
   doubleprecision :: middle_x             !
   doubleprecision :: z_max      = 0.0D0
+  doubleprecision :: foldCenter(3)
 
   doubleprecision :: Bau                        ! in au
   doubleprecision :: Vgt, Vgb, E0t, E0b, nt, nb ! result from Bilayer
   doubleprecision :: Ef                         ! Fermi energy for calculations
   integer, parameter :: numLeads = 4
   doubleprecision, dimension(numLeads, numLeads) :: T ! Transmission matrix
-  integer         :: nx = 90                    ! numbers of atoms / 2 in x direction
-  ! integer         :: nx = 180                    ! numbers of atoms / 2 in x direction
-                                                ! results in about 196 nm
-  ! integer         :: ny = 122                   ! ~numbers of atoms / 2 in y direction (keep even)
-  integer         :: ny = 60                   ! ~numbers of atoms / 2 in y direction (keep even)
-  ! integer         :: ny = 244                   ! ~numbers of atoms / 2 in y direction (keep even)
+  integer         :: nx = 200 / 16             ! numbers of atoms / 2 in x direction
+  ! integer         :: nx = 90                  ! numbers of atoms / 2 in x direction
+  ! results in about 196 nm
+  ! integer         :: nx = 180                 ! numbers of atoms / 2 in x direction
+  ! integer         :: ny = 122                 ! ~numbers of atoms / 2 in y direction (keep even)
+  integer         :: ny = 200 / 16             ! ~numbers of atoms / 2 in y direction (keep even)
+  ! integer         :: ny = 60                  ! ~numbers of atoms / 2 in y direction (keep even)
+  ! integer         :: ny = 244                 ! ~numbers of atoms / 2 in y direction (keep even)
                                                 ! results in about 170 nm
   integer         :: from = 1, to = 1           ! lead indexes for writing transmissions to a file
   integer :: n
   doubleprecision :: r = 0
+  doubleprecision :: AA = 0.075D0               ! Anderson potential
   ! lead storage
   type(qshape) :: leadShapes(numLeads)
   doubleprecision :: leadTrans(3,numLeads)
@@ -47,6 +51,7 @@ program main
   call parseArguments()
   nx = nx * (16 / sf)
   ny = ny * (16 / sf) + 1
+  write(*, "(A,i,A,i)"), "Nx: ", nx, " Ny: ", ny
   call random_seed(put = seed)
 
   do n = 1,100
@@ -119,7 +124,8 @@ contains
 
     type(qatom) :: qa
 
-    doubleprecision :: foldRadius = 0.5D0/2
+    ! doubleprecision :: foldRadius = 0.5D0/2
+    doubleprecision :: foldRadius = 5.0D0/2
     doubleprecision :: position_scale
     integer         :: i, atom
     integer(c_int)  :: position_count
@@ -133,11 +139,12 @@ contains
     doubleprecision           :: vecs_armchair(2,2)     = (/ (/ 1.0D0,0.0D0 /), (/ sin(alpha30), cos(alpha30) /) /)
     integer         :: currentLead = 1
     print*, "Creating System"
-    foldRadius = scaleBasedOnSf(foldRadius / geometric_unit, sf)! in nm. Positions are later scaled by sf
+    ! foldRadius = scaleBasedOnSf(foldRadius / geometric_unit, sf)! in nm. Positions are later scaled by sf
+    ! foldRadius = foldRadius! in nm. Positions are later scaled by sf
     ! cutLead = scaleBasedOnSfInt(cutLead, sf)
-    cutLead = ny * 0.25
-    leadWidth = scaleBasedOnSfInt(leadWidth, sf)
-    leadWidth = ny * 0.5
+    cutLead = ny * 0.35
+    ! leadWidth = scaleBasedOnSfInt(leadWidth, sf)
+    leadWidth = ny * 0.55
 
     write(*, "(A,f5.3,A,i,A,i)") "R=", foldRadius, " cutLead=", cutLead, " leadWidth=", leadWidth
 
@@ -164,7 +171,8 @@ contains
     QSYS_FORCE_SCHUR_DECOMPOSITION  = .false. ! don't use schur method so its quicker
 
     position_scale = sf * geometric_unit2au
-    call Bilayer_generatePositions3D(nx, ny, foldRadius, cutLead, leadWidth, &
+    call Bilayer_generatePositions3D(nx, ny, foldRadius  / geometric_unit / sf, &
+                                     cutLead, leadWidth, &
                                      position_data, position_count)
     call c_f_pointer(position_data, positions, [3 * position_count])
 
@@ -180,6 +188,13 @@ contains
       call qt%qsystem%add_atom(qa)
     enddo
 
+    foldCenter = (/ 0.0D0, y_max - foldRadius * nm2au, foldRadius * nm2au/)
+#ifdef DEBUG
+    print*, "Saving additional Atom at the centre of a fold"
+    call qa%init(foldCenter, flag=atom)
+    call qt%qsystem%add_atom(qa)
+#endif
+
     middle_x = 0.5 * (x_min + x_max)
     middle_y = 0.5 * (y_min + y_max)
 
@@ -190,13 +205,14 @@ contains
     write(*, "(A,f10.5,A)"), "y_min       ", y_min / nm2au, " nm"
     write(*, "(A,f10.5,A)"), "y_max       ", y_max / nm2au, " nm"
     write(*, "(A,f10.5,A)"), "z_max       ", z_max / nm2au, " nm"
+    write(*, "(A,f10.5,A)"), "AA          ", AA, " eV"
 
     !----------------------------------------- Leads -----------------------------------------------
 
     ! I
     ! lead 1 and 2 are added (voltage)
     call leads_init()
-    call addXInvFoldLeads(currentLead, x_min, x_max, y_max, foldRadius, vecs_armchair, cutLead)
+    call addXInvFoldLeads(currentLead, x_min, x_max, y_max, foldRadius * nm2au, vecs_armchair, cutLead)
     call addXInvUpDownLeads(currentLead, x_min, x_max, y_min, vecs_armchair, leadWidth)
     !---------------------------------------- Coupling ---------------------------------------------
 
@@ -205,7 +221,6 @@ contains
     qt%qnnbparam%NNB_FILTER = QSYS_NNB_FILTER_DISTANCE
 
     Bau = Bz * T2au
-
 
     call qt%qsystem%make_lattice(qt%qnnbparam, c_simple=connect)
     ! ! Remove single bonds if necessary, loop through all atoms and
@@ -306,7 +321,7 @@ contains
     call addLeadRect(idx, &
                      x_min - 0.1, &
                      x_min + lead_translation(1) - 0.099, &
-                     y_max - 0.1 - (cutLead + 1) * vecs_armchair(2,2) + foldRadius, &
+                     y_max - 0.1 - (cutLead + 2) * vecs_armchair(2,2) - foldRadius, &
                      y_max + 0.1, &
                      (/lead_translation(1), lead_translation(2), 0.0D0/))
     idx = idx + 1
@@ -315,7 +330,7 @@ contains
     call addLeadRect(idx, &
                      x_max - lead_translation(1) + 0.099, &
                      x_max + 0.1, &
-                     y_max - 0.1 - (cutLead + 1) * vecs_armchair(2,2) + foldRadius, &
+                     y_max - 0.1 - (cutLead + 2) * vecs_armchair(2,2) - foldRadius, &
                      y_max + 0.1, &
                      (/-lead_translation(1), -lead_translation(2), 0.0D0/))
     idx = idx + 1
@@ -324,14 +339,7 @@ contains
 ! --------------------------------------------------------------------------------------------------
 
 
-  subroutine addXInvDiagLeads()
-    implicit none
-    return
-  end subroutine
-! --------------------------------------------------------------------------------------------------
-
-
-  ! add leads that span whole Y side to simulate fold with leads on two layers
+  ! add leads that span two layers
   subroutine addXInvUpDownLeads(idx, x_min, x_max, y_min, vecs_armchair, leadWidth)
     use modscatter
     use modunits
@@ -397,7 +405,8 @@ contains
     if (.not. (atomA%flag == atomB%flag)) then
       ! hopping
       connect = .true.
-      t = (- t0 * eV2au) / sf
+      ! t = ( - t0 * eV2au ) / sf
+      t = ( slaterCoster(atomA%atom_pos, atomB%atom_pos, foldCenter) * eV2au ) / sf
       xA = atomA%atom_pos(1)
       yA = atomA%atom_pos(2)
       xB = atomB%atom_pos(1)
@@ -425,10 +434,64 @@ contains
         call random_number(r)
         ! potencjał andersona, +-5/100 eV dla sf8 -> 1/10 2/10 -----> sf4 - pomnożyć przez 2 sf ||||| sf rośnie AA maleje
         ! add random number +- 0.05 eV
-        coupling_val = coupling_val + (2 * r - 1) * 0.075D0 * eV2au
+        coupling_val = coupling_val + (2 * r - 1) * AA * eV2au
       endif
     endif
   end function
+! --------------------------------------------------------------------------------------------------
+
+
+
+! --------------------------------------------------------------------------------------------------
+! Calculate hoping between atoms for bent connections
+! --------------------------------------------------------------------------------------------------
+  doubleprecision function slaterCoster(posA, posB, foldCenter) result(t)
+    implicit none
+    ! args
+    doubleprecision :: posA(3), posB(3), foldCenter(3)
+
+    ! local
+    doubleprecision, parameter :: Vpp_pi    = - 3.0D0 ! standard hopping
+    doubleprecision, parameter :: Vpp_sigma = 1.7 * Vpp_pi !
+
+    doubleprecision :: d(3), nA(3), nB(3)
+! --------------------------------------------------------------------------------------------------
+
+    ! vector from first atom to second
+    d = posB - posA
+
+    ! versors perpendicular to positions
+    call getVersor(posA, foldCenter, nA)
+    call getVersor(posB, foldCenter, nB)
+
+    t = Vpp_pi * dot(nA, nB) + &
+        (Vpp_sigma - Vpp_pi) * dot(nA, d) * dot(nB, d)
+
+  end function
+! --------------------------------------------------------------------------------------------------
+
+
+
+! --------------------------------------------------------------------------------------------------
+! Get versor perpendicular to surface at the position pos
+! --------------------------------------------------------------------------------------------------
+  subroutine getVersor(pos, foldCenter, versor)
+    implicit none
+    doubleprecision :: pos(3), foldCenter(3), versor(3)
+! --------------------------------------------------------------------------------------------------
+    ! if not fold
+    if (pos(2) < foldCenter(2)) then
+      if (pos(3) < foldCenter(3)) then
+        versor = (/ 0.0D0, 0.0D0, 1.0D0 /)
+      else
+        versor = (/ 0.0D0, 0.0D0, -1.0D0 /)
+      endif
+    else ! if fold
+      versor = foldCenter - pos
+      versor(1) = 0.0D0 ! get vector to axis of cyllinder
+      versor = versor / len(versor)
+    endif
+  end subroutine
 ! --------------------------------------------------------------------------------------------------
 
 end program main
